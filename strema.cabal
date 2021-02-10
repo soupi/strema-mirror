@@ -1,0 +1,77 @@
+name:                strema
+version:             0.1.0.0
+-- synopsis:
+-- description:
+homepage:            https://gitlab.com/gilmi/strema#readme
+license:             BSD3
+license-file:        LICENSE
+author:              Gil Mizrahi
+maintainer:          gilmi@posteo.net
+copyright:           2021 Gil Mizrahi
+category:            Language
+build-type:          Simple
+extra-source-files:  README.md
+cabal-version:       >=1.10
+
+library
+  hs-source-dirs:      src
+
+  exposed-modules:
+    CodeGen
+    Compile
+    JS
+    JS.Ast
+    JS.Pretty
+    Strema.Ast
+
+  build-depends:       base >= 4.7 && < 5
+                     , containers
+                     , text
+                     , pretty-simple
+                     , mtl
+                     , prettyprinter
+                     , megaparsec
+
+  default-extensions:
+    LambdaCase
+    TypeApplications
+    DeriveDataTypeable
+    DeriveFunctor
+    DeriveFoldable
+    DeriveTraversable
+    DeriveGeneric
+
+  default-language:    Haskell2010
+
+  ghc-options:         -Wall
+
+executable strema
+  hs-source-dirs:      app
+  main-is:             Main.hs
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base
+                     , strema
+  default-language:    Haskell2010
+
+test-suite strema-test
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             Spec.hs
+
+  other-modules:       Tests.Pretty
+
+  build-depends:       base
+                     , strema
+                     , text
+                     , containers
+                     , mtl
+                     , hspec
+                     , QuickCheck
+
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  default-language:    Haskell2010
+  build-tool-depends: hspec-discover:hspec-discover == 2.*
+
+source-repository head
+  type:     git
+  location: https://gitlab.com/gilmi/strema
