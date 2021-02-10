@@ -1,6 +1,6 @@
 {-# language OverloadedStrings #-}
 
-module Tests.Pretty where
+module Tests.PrettySpec where
 
 import JS.Ast
 import JS.Pretty

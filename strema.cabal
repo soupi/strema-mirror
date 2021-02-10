@@ -58,7 +58,7 @@ test-suite strema-test
   hs-source-dirs:      test
   main-is:             Spec.hs
 
-  other-modules:       Tests.Pretty
+  other-modules:       Tests.PrettySpec
 
   build-depends:       base
                      , strema
