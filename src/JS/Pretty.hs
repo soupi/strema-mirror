@@ -17,7 +17,7 @@ pp :: (a -> Doc ann) -> a -> T.Text
 pp f = render . f
 
 render :: Doc a -> T.Text
-render = renderStrict . layoutPretty defaultLayoutOptions
+render = T.unlines . pure . renderStrict . layoutPretty defaultLayoutOptions
 
 ------------
 -- Pretty --
