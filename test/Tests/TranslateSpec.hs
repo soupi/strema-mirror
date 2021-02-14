@@ -11,7 +11,6 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Map as M
 
-import System.Directory (createDirectoryIfMissing)
 import System.Process (readProcess)
 
 -- `main` is here so that this module can be run from GHCi on its own.  It is
@@ -22,7 +21,6 @@ main = do
 
 spec :: Spec
 spec = do
-  runIO $ createDirectoryIfMissing False testsdir
   describe "translation" $ do
     simples
     patmatch
@@ -33,14 +31,14 @@ simples :: Spec
 simples = do
   describe "Simple" $ do
     it "lit int" $ do
-      check "litint"
+      check
         ( boilerplate $
           ELit $ LInt 7
         )
         "7"
 
     it "variant" $ do
-      check "variant"
+      check
         ( boilerplate $
           EVariant "Nil" (ERecord mempty)
         )
@@ -50,7 +48,7 @@ patmatch :: Spec
 patmatch = do
   describe "Pattern matching" $ do
     it "wildcard" $ do
-      check "wildcard"
+      check
         ( boilerplate $
           ECase (ELit $ LInt 0)
           [ (PWildcard, ELit $ LInt 1)
@@ -59,7 +57,7 @@ patmatch = do
         "1"
 
     it "case int" $ do
-      check "case_int"
+      check
         ( boilerplate $
           ECase (ELit $ LInt 0)
           [ (PLit (LInt 1), ELit $ LInt 1)
@@ -69,7 +67,7 @@ patmatch = do
         "0"
 
     it "case var" $ do
-      check "case_var"
+      check
         ( boilerplate $
           ECase (ELit $ LInt 17)
           [ (PLit (LInt 1), ELit $ LInt 1)
@@ -80,7 +78,7 @@ patmatch = do
         "17"
 
     it "case_variant_label" $ do
-      check "case_variant_label"
+      check
         ( boilerplate $
           ECase
           ( EVariant "Nil" $
@@ -95,7 +93,7 @@ patmatch = do
         "0"
 
     it "case variant record" $ do
-      check "case_variant_record"
+      check
         ( boilerplate $
           ECase
           ( EVariant "Nil" $
@@ -119,15 +117,10 @@ patmatch = do
 
 --------------------------------------------
 
-check :: FilePath -> File -> String -> IO ()
-check name file expected = do
-  let
-    fname = testsdir <> name <> ".strm"
-  T.writeFile fname $ compile file
-  result <- readProcess "nodejs" [fname] ""
+check :: File -> String -> IO ()
+check file expected = do
+  result <- readProcess "nodejs" [] (T.unpack $ compile file)
   shouldBe result (expected <> "\n")
-
-testsdir = "/tmp/strema-tests/"
 
 boilerplate :: Expr -> File
 boilerplate e = File
