@@ -1,3 +1,10 @@
+{- | Prettyprint JavaScript
+
+In this module we convert our JS AST to plaintext, so we can run it using
+an interpreter or a browser.
+
+-}
+
 {-# language OverloadedStrings #-}
 
 module JS.Pretty where
@@ -41,6 +48,12 @@ ppStmt = \case
     "return" <+> ppExpr expr <> ";"
   SDef def ->
     ppDef def <> ";"
+  SIf cond sub ->
+    vsep
+      [ "if " <> parens (ppExpr cond) <+> "{"
+      , indent 4 $ ppSub sub
+      , "}"
+      ]
 
 ppDef :: Definition -> Doc ann
 ppDef = \case
@@ -64,6 +77,16 @@ ppExpr = \case
 
   ERecord record ->
     ppRecord ppExpr record
+
+  ERecordAccess expr label ->
+    (if isSimple expr then id else parens) (ppExpr expr)
+      <> "." <> pretty label
+
+  EEquals e1 e2 ->
+    ppExpr e1 <+> "==" <+> ppExpr e2
+
+  EAnd exprs ->
+    encloseSep "" "" " && " (map ppExpr exprs)
 
   EFun args body ->
     vsep
@@ -90,10 +113,11 @@ ppLit :: Lit -> Doc ann
 ppLit = \case
   LInt i -> pretty i
   LFloat f -> pretty f
-  LString s -> pretty s
+  LString s -> pretty (show s)
   LBool True -> "true"
   LBool False -> "false"
 
+-- | Simple expressions do not need parenthesis around them
 isSimple :: Expr -> Bool
 isSimple = \case
   ELit{} -> True
@@ -101,3 +125,6 @@ isSimple = \case
   ERecord{} -> False
   EFun{} -> False
   EFunCall{} -> True
+  EAnd{} -> True
+  EEquals{} -> False
+  ERecordAccess{} -> True

@@ -100,17 +100,17 @@ strings = do
     it "string simple" $
       shouldBe
         (ppLit' $ LString "hello")
-        "hello"
+        "\"hello\""
 
     it "string spaces" $
       shouldBe
         (ppLit' $ LString "hello   world")
-        "hello   world"
+        "\"hello   world\""
 
     it "string \"\"" $
       shouldBe
         (ppLit' $ LString "\"hello world\"")
-        "\"hello world\""
+        "\"\\\"hello world\\\"\""
 
 bools :: Spec
 bools = do
@@ -163,10 +163,10 @@ rec_ = M.fromList
 (.=) = (,)
 
 ppRecord' :: Record Expr -> T.Text
-ppRecord' = pp (ppRecord ppExpr)
+ppRecord' = T.init . pp (ppRecord ppExpr)
 
 ppLit' :: Lit -> T.Text
-ppLit' = pp ppLit
+ppLit' = T.init . pp ppLit
 
 ppExpr' :: Expr -> T.Text
-ppExpr' = pp ppExpr
+ppExpr' = T.init . pp ppExpr

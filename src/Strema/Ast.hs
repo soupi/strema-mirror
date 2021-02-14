@@ -1,3 +1,6 @@
+{- | Strema AST
+
+-}
 
 module Strema.Ast where
 
@@ -25,12 +28,17 @@ data Expr
   | EVar Var
   | EFun [Var] Sub
   | EFunCall Expr [Expr]
+  | EVariant T.Text Expr
   | ERecord (Record Expr)
+  | ERecordAccess Expr Label
+  | ECase Expr [(Pattern, Expr)]
   | EFfi T.Text [Expr]
   deriving Show
 
+type Label = T.Text
+
 type Record a
-  = M.Map Var a
+  = M.Map Label a
 
 data Lit
   = LInt Int
@@ -38,5 +46,12 @@ data Lit
   | LString T.Text
   deriving Show
 
+data Pattern
+  = PWildcard
+  | PVar Var
+  | PLit Lit
+  | PVariant T.Text Pattern
+  | PRecord (Record Pattern)
+  deriving Show
 
 type Var = T.Text
