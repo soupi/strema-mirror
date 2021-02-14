@@ -1,6 +1,6 @@
 {-# language OverloadedStrings #-}
 
-module CodeGen where
+module Translate where
 
 -- import qualified Data.Text as T
 -- import qualified Data.Map as M

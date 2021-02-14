@@ -17,12 +17,12 @@ library
   hs-source-dirs:      src
 
   exposed-modules:
-    CodeGen
     Compile
     JS
     JS.Ast
     JS.Pretty
     Strema.Ast
+    Translate
 
   build-depends:       base >= 4.7 && < 5
                      , containers

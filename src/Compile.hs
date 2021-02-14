@@ -5,7 +5,7 @@ import qualified Data.Text.IO as T
 
 import qualified Strema.Ast as Strm
 import qualified JS
-import CodeGen
+import Translate
 
 compile :: Strm.File -> T.Text
 compile = JS.pp JS.ppFile . translateFile
