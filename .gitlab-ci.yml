@@ -12,7 +12,7 @@ cache:
 
 before_script:
   - apt-get update
-  - apt-get install make xz-utils
+  - apt-get install -y make xz-utils nodejs
   - wget -qO- https://get.haskellstack.org/ | sh
 
 stages:
