@@ -6,9 +6,7 @@ import Compile
 import Strema.Ast
 
 import Test.Hspec
-import Test.QuickCheck
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
 import qualified Data.Map as M
 
 import System.Process (readProcess)
