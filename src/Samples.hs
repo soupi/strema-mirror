@@ -11,7 +11,7 @@ import Strema.Ast as Strm
 
 boilerplate :: Expr -> File
 boilerplate e = File
-  [ Function "main" []
+  [ TermDef $ Function "main" []
     [ SExpr $ EFfi "console.log" [ e ]
     ]
   ]
@@ -22,7 +22,7 @@ simple = boilerplate $
 
 variant :: File
 variant = boilerplate $
-  EVariant "Nil" (ERecord mempty)
+  EVariant (Variant "Nil" (ERecord mempty))
 
 -- expected output: 1
 patmatch1 :: File
@@ -52,26 +52,26 @@ patmatch3 = boilerplate $
 patmatch4 :: File
 patmatch4 = boilerplate $
   ECase
-    ( EVariant "Nil" $
+    ( EVariant $ Variant "Nil" $
       ERecord $ M.fromList
         [ ("head", ELit $ LInt 0)
         , ("tail", ERecord mempty)
         ]
     )
-    [ (PVariant "Nil" (PVar "obj"), ERecordAccess (EVar "obj") "head")
+    [ (PVariant $ Variant "Nil" (PVar "obj"), ERecordAccess (EVar "obj") "head")
     ]
 
 -- expected output: 0
 patmatch5 :: File
 patmatch5 = boilerplate $
   ECase
-    ( EVariant "Nil" $
+    ( EVariant $ Variant "Nil" $
       ERecord $ M.fromList
         [ ("head", ELit $ LInt 0)
         , ("tail", ERecord mempty)
         ]
     )
-    [ ( PVariant "Nil"
+    [ ( PVariant $ Variant "Nil"
         ( PRecord $ M.fromList
           [ ("head", PVar "head")
           , ("tail", PRecord mempty)
@@ -80,3 +80,21 @@ patmatch5 = boilerplate $
       , EVar "head"
       )
     ]
+
+-- expected output: 7
+recordExt :: File
+recordExt = boilerplate $
+  ERecordAccess
+    ( ERecordExtension
+      ( M.fromList
+        [ ("x", ELit $ LInt 7)
+        ]
+      )
+      (ERecord mempty)
+    )
+    "x"
+
+-- expected output: 2
+addition :: File
+addition = boilerplate $
+  EFunCall (EVar "add") [ ELit $ LInt 1, ELit $ LInt 1 ]

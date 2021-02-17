@@ -54,6 +54,11 @@ ppStmt = \case
       , indent 4 $ ppSub sub
       , "}"
       ]
+  SRecordClone var expr ->
+    "var" <+> pretty var <+> "=" <+> "Object.assign({}," <+> ppExpr expr <> ");"
+  SRecordAssign var lbl newval ->
+    pretty var <> "." <> pretty lbl <+> "=" <+> ppExpr newval <+> ";"
+
 
 ppDef :: Definition -> Doc ann
 ppDef = \case
@@ -85,6 +90,9 @@ ppExpr = \case
   EEquals e1 e2 ->
     ppExpr e1 <+> "==" <+> ppExpr e2
 
+  EBinOp op e1 e2 ->
+    ppExpr e1 <+> pretty op <+> ppExpr e2
+
   EAnd exprs ->
     encloseSep "" "" " && " (map ppExpr exprs)
 
@@ -101,6 +109,8 @@ ppExpr = \case
       , tupled (map ppExpr args)
       ]
 
+  ERaw rawString ->
+    pretty rawString
 
 ppRecord :: (a -> Doc ann) -> Record a -> Doc ann
 ppRecord ppf record =
@@ -127,4 +137,6 @@ isSimple = \case
   EFunCall{} -> True
   EAnd{} -> True
   EEquals{} -> False
+  EBinOp{} -> False
+  ERaw{} -> False
   ERecordAccess{} -> True

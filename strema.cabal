@@ -22,6 +22,9 @@ library
     JS.Ast
     JS.Pretty
     Strema.Ast
+    Strema.Builtins
+    Strema.Common
+    Strema.Types.Types
     Translate
 
     Samples

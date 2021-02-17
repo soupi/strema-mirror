@@ -9,18 +9,24 @@
 
 module Translate where
 
+import Data.Maybe
 import Data.Traversable
 import qualified Data.Text as T
 import qualified Data.Map as M
 import Control.Monad.State
+import Control.Monad.Reader
 
 import Strema.Ast
+import Strema.Builtins
 import qualified JS.Ast as JS
 
 -- Types and utilities --
 
 type TranState = Int
-type Translate m = MonadState TranState m
+type Translate m =
+  ( MonadState TranState m
+  , MonadReader Builtins m
+  )
 
 genVar :: Translate m => T.Text -> m Var
 genVar prefix = do
@@ -28,22 +34,36 @@ genVar prefix = do
   modify (+1)
   pure ("_" <> prefix <> "_" <> T.pack (show n))
 
-translate :: (a -> State TranState b) -> a -> b
-translate tran ast = evalState (tran ast) 0
+translate :: (a -> StateT TranState (Reader Builtins) b) -> Builtins -> a -> b
+translate tran built =
+  ( flip runReader built
+  . flip evalStateT 0
+  . tran
+  )
 
 -- Translation --
 
 translateFile :: Translate m => File -> m JS.File
-translateFile file@(File defs) =
+translateFile (File alldefs) = do
+  let
+    -- we don't need to compile data type definitions
+    defs =
+      mapMaybe
+      ( \case
+        TermDef def -> Just def
+        TypeDef{} -> Nothing
+      )
+      alldefs
+
   fmap JS.File $ (<>)
     <$> traverse (fmap JS.SDef . translateDef) defs
     <*> pure
       [JS.SExpr $ JS.EFunCall (JS.EVar "main") []
-      | hasMain file
+      | hasMain defs
       ]
 
-hasMain :: File -> Bool
-hasMain (File defs) =
+hasMain :: [TermDef] -> Bool
+hasMain =
   any
     ( \case
       Function "main" [] _ ->
@@ -53,9 +73,9 @@ hasMain (File defs) =
       _ ->
         False
     )
-    defs
 
-translateDef :: Translate m => Definition -> m JS.Definition
+
+translateDef :: Translate m => TermDef -> m JS.Definition
 translateDef = \case
   Variable var expr ->
     JS.Variable var <$> translateExpr expr
@@ -84,15 +104,35 @@ translateExpr :: Translate m => Expr -> m JS.Expr
 translateExpr = \case
   ELit lit ->
     pure $ JS.ELit (translateLit lit)
-  EVar var ->
-    pure $ JS.EVar var
+
+  EVariant (Variant "True" (ERecord record))
+    | M.null record -> do
+      pure $ JS.ELit (JS.LBool True)
+
+  EVariant (Variant "False" (ERecord record))
+    | M.null record -> do
+      pure $ JS.ELit (JS.LBool False)
+
+  EVar var -> do
+    mbuiltin <- asks (M.lookup var)
+    case mbuiltin of
+      Nothing ->
+        pure $ JS.EVar var
+      Just Builtin{ bImpl = impl } ->
+        case impl of
+          Func fun ->
+            pure $ JS.ERaw fun
+          BinOp op ->
+            pure $ JS.EFun ["x", "y"]
+              [ JS.SRet (JS.EBinOp op (JS.EVar "x") (JS.EVar "y")) ]
+
   EFun args body ->
     JS.EFun args <$> translateSub body
   EFunCall fun args ->
     JS.EFunCall
       <$> translateExpr fun
       <*> traverse translateExpr args
-  EVariant tag dat -> do
+  EVariant (Variant tag dat) -> do
     dat' <- translateExpr dat
     pure $ JS.ERecord $ M.fromList
       [ ("_tag", JS.ELit $ JS.LString tag)
@@ -104,6 +144,18 @@ translateExpr = \case
     JS.ERecordAccess
       <$> translateExpr expr
       <*> pure label
+  ERecordExtension record expr -> do
+    expr' <- translateExpr expr
+    record' <- traverse translateExpr record
+    let
+      fun = JS.EFun ["_record"] $ concat
+        [ [ JS.SRecordClone "_record_copy" (JS.EVar "_record") ]
+        , map
+          (\(lbl, val) -> JS.SRecordAssign "_record_copy" lbl val)
+          (M.toList record')
+        , [ JS.SRet (JS.EVar "_record_copy") ]
+        ]
+    pure $ JS.EFunCall fun [expr']
   ECase expr patterns -> do
     expr' <- translateExpr expr
     var <- genVar "case"
@@ -164,7 +216,7 @@ translatePattern expr = \case
       { conditions = [JS.EEquals (JS.ELit $ translateLit lit) expr]
       , matchers = []
       }
-  PVariant tag pat -> do
+  PVariant (Variant tag pat) -> do
     pat' <- translatePattern (JS.ERecordAccess expr "_field") pat
     pure $ PatResult
       { conditions =

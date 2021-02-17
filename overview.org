@@ -59,3 +59,28 @@ A pattern can be one of the following:
 We will compile pattern matching into several if statements that if succeeds will enter a function with the matched variables and return from there.
 
 We will also need to generate fresh variables for the variables we match on.
+*** Records
+Records in strema are anonymous and first class.
+
+Implementing them is straightforward because JavaScript already has objects.
+
+Selecting a specific field in a record is simple, just use .field syntax.
+Strema will also use this syntax.
+
+Record extension is slightly more tricky - since records in strema are immutable,
+we need to first copy the record, mutate it, and return that.
+
+Also, changing the type of a field is OK is strema.
+
+- ~{ x = 7 }.x~ should result in ~7~
+
+#+BEGIN_SRC haskell
+let r = { x = 7, y = 0.0 }
+{ x = "hello" | r }
+#+END_SRC
+
+should result in ~{ x = "hello", y = 0.0 }~.
+*** Built-ins
+We want to be able to run some native JavaScript operations,
+We can use the ~EFfi~ constructor to generate normal javascript functions,
+But we need a new constructor for binary operations.

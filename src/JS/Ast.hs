@@ -21,6 +21,8 @@ data Statement
   | SRet Expr
   | SDef Definition
   | SIf Expr Sub
+  | SRecordClone Var Expr
+  | SRecordAssign Var Label Expr -- Expr.label = Expr
   deriving Show
 
 data Expr
@@ -31,7 +33,9 @@ data Expr
   | ERecord (Record Expr)
   | EAnd [Expr]
   | EEquals Expr Expr
+  | EBinOp T.Text Expr Expr
   | ERecordAccess Expr Label
+  | ERaw T.Text
   deriving Show
 
 type Label = T.Text

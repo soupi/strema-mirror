@@ -4,6 +4,7 @@ module Tests.TranslateSpec where
 
 import Compile
 import Strema.Ast
+import Strema.Builtins
 
 import Test.Hspec
 import qualified Data.Text as T
@@ -21,7 +22,9 @@ spec :: Spec
 spec = do
   describe "translation" $ do
     simples
+    records
     patmatch
+    builtin
 
 -- expressions --
 
@@ -38,9 +41,80 @@ simples = do
     it "variant" $ do
       check
         ( boilerplate $
-          EVariant "Nil" (ERecord mempty)
+          EVariant $ Variant "Nil" (ERecord mempty)
         )
         "{ _field: {}, _tag: 'Nil' }"
+
+    it "function application" $ do
+      check
+        ( boilerplate $
+          EFunCall (EFun ["a", "b"] [SExpr $ EVar "a"])
+            [ ELit $ LInt 7, ELit $ LString "hello" ]
+        )
+        "7"
+
+records :: Spec
+records = do
+  describe "Records" $ do
+    it "record access" $ do
+      check
+        ( boilerplate $
+          ERecordAccess
+            ( ERecord $ M.fromList [("x", ELit $ LInt 9)] )
+            "x"
+        )
+        "9"
+
+    it "record extension" $ do
+      check
+        ( boilerplate $
+          ERecordAccess
+            ( ERecordExtension
+              ( M.fromList
+                [ ("x", ELit $ LInt 7)
+                ]
+              )
+              (ERecord mempty)
+            )
+            "x"
+        )
+        "7"
+
+    it "record extension preserves info" $ do
+      check
+        ( boilerplate $
+          ERecordAccess
+            ( ERecordExtension
+              ( M.fromList
+                [ ("x", ELit $ LInt 7)
+                ]
+              )
+              ( ERecord $ M.fromList
+                [ ("y", ELit $ LString "hello")
+                ]
+              )
+            )
+            "y"
+        )
+        "hello"
+
+    it "record extension overrides fields" $ do
+      check
+        ( boilerplate $
+          ERecordAccess
+            ( ERecordExtension
+              ( M.fromList
+                [ ("x", ELit $ LInt 7)
+                ]
+              )
+              ( ERecord $ M.fromList
+                [ ("x", ELit $ LString "hello")
+                ]
+              )
+            )
+            "x"
+        )
+        "7"
 
 patmatch :: Spec
 patmatch = do
@@ -79,13 +153,13 @@ patmatch = do
       check
         ( boilerplate $
           ECase
-          ( EVariant "Nil" $
+          ( EVariant $ Variant "Nil" $
             ERecord $ M.fromList
             [ ("head", ELit $ LInt 0)
             , ("tail", ERecord mempty)
             ]
           )
-          [ (PVariant "Nil" (PVar "obj"), ERecordAccess (EVar "obj") "head")
+          [ (PVariant $ Variant "Nil" (PVar "obj"), ERecordAccess (EVar "obj") "head")
           ]
         )
         "0"
@@ -94,13 +168,13 @@ patmatch = do
       check
         ( boilerplate $
           ECase
-          ( EVariant "Nil" $
+          ( EVariant $ Variant "Nil" $
             ERecord $ M.fromList
             [ ("head", ELit $ LInt 0)
             , ("tail", ERecord mempty)
             ]
           )
-          [ ( PVariant "Nil"
+          [ ( PVariant $ Variant "Nil"
               ( PRecord $ M.fromList
                 [ ("head", PVar "head")
                 , ("tail", PRecord mempty)
@@ -112,6 +186,97 @@ patmatch = do
         )
         "0"
 
+    it "nested case" $ do
+      check
+        ( boilerplate $
+          ECase (ELit $ LInt 0)
+          [ (PLit (LInt 1), ELit $ LInt 1)
+          , ( PLit (LInt 0)
+            , ECase (ELit $ LInt 99)
+              [ (PLit (LInt 1), ELit $ LInt 1)
+              , (PVar "n", EVar "n")
+              ]
+            )
+          ]
+        )
+        "99"
+
+builtin :: Spec
+builtin = do
+  describe "Builtins" $ do
+    ints
+    bools
+    strings
+
+ints :: Spec
+ints = do
+  describe "ints" $ do
+    it "addition" $ do
+      check
+        ( boilerplate $
+          EFunCall (EVar "add") [ ELit $ LInt 1, ELit $ LInt 1 ]
+        )
+        "2"
+
+    it "negate" $ do
+      check
+        ( boilerplate $
+          EFunCall (EVar "negate") [ ELit $ LInt 2 ]
+        )
+        "-2"
+
+strings :: Spec
+strings = do
+  describe "strings" $ do
+    it "concat" $ do
+      check
+        ( boilerplate $
+          EFunCall (EVar "concat")
+          [ EFunCall (EVar "concat") [ ELit $ LString "hello", ELit $ LString " " ]
+          , ELit $ LString "world"
+          ]
+        )
+        "hello world"
+
+bools :: Spec
+bools = do
+  describe "bools" $ do
+    it "not" $ do
+      check
+        ( boilerplate $
+          EFunCall (EVar "not") [ false ]
+        )
+        "true"
+
+    describe "and" $ do
+      it "true true" $ do
+        check
+          ( boilerplate $
+            EFunCall (EVar "and") [ true, true ]
+          )
+          "true"
+
+      it "true false" $ do
+        check
+          ( boilerplate $
+            EFunCall (EVar "and") [ true, false ]
+          )
+          "false"
+
+    describe "or" $ do
+      it "false false" $ do
+        check
+          ( boilerplate $
+            EFunCall (EVar "or") [ false, false ]
+          )
+          "false"
+
+      it "true false" $ do
+        check
+          ( boilerplate $
+            EFunCall (EVar "or") [ true, false ]
+          )
+          "true"
 
 --------------------------------------------
 
@@ -122,7 +287,7 @@ check file expected = do
 
 boilerplate :: Expr -> File
 boilerplate e = File
-  [ Function "main" []
+  [ TermDef $ Function "main" []
     [ SExpr $ EFfi "console.log" [ e ]
     ]
   ]

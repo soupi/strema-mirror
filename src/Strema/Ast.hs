@@ -2,25 +2,41 @@
 
 -}
 
-module Strema.Ast where
+module Strema.Ast
+  ( module Strema.Ast
+  , module Strema.Common
+  , module Strema.Types.Types
+  )
+where
 
 import qualified Data.Text as T
-import qualified Data.Map as M
+
+import Strema.Types.Types
+import Strema.Common
 
 data File
   = File [Definition]
   deriving Show
 
 data Definition
+  = TypeDef Datatype
+  | TermDef TermDef
+  deriving Show
+
+data TermDef
   = Variable Var Expr
   | Function Var [Var] Sub
   deriving Show
 
 type Sub = [Statement]
 
+data Datatype
+  = Datatype Constr [TypeVar] [Variant Type]
+  deriving Show
+
 data Statement
   = SExpr Expr
-  | SDef Definition
+  | SDef TermDef
   deriving Show
 
 data Expr
@@ -28,17 +44,13 @@ data Expr
   | EVar Var
   | EFun [Var] Sub
   | EFunCall Expr [Expr]
-  | EVariant T.Text Expr
+  | EVariant (Variant Expr)
   | ERecord (Record Expr)
   | ERecordAccess Expr Label
+  | ERecordExtension (Record Expr) Expr
   | ECase Expr [(Pattern, Expr)]
   | EFfi T.Text [Expr]
   deriving Show
-
-type Label = T.Text
-
-type Record a
-  = M.Map Label a
 
 data Lit
   = LInt Int
@@ -50,7 +62,7 @@ data Pattern
   = PWildcard
   | PVar Var
   | PLit Lit
-  | PVariant T.Text Pattern
+  | PVariant (Variant Pattern)
   | PRecord (Record Pattern)
   deriving Show
 
