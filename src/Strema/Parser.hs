@@ -59,14 +59,14 @@ getAnn = P.getSourcePos
 runParser :: Parser a -> FilePath -> Text -> Either Text a
 runParser p file src =
   first (T.pack . P.errorBundlePretty) $
-    P.runParser (p <* P.eof) file src
+    P.runParser (lexeme (pure ()) *> newlines *> lexeme p <* newlines <* P.eof) file src
 
 -- * Lexing
 
 -- | How to read whitespace after reading a node
 sc :: Parser ()
 sc = L.space
-  P.hspace1 -- We don't want to read newlines because it matters semantically
+  P.hspace1 -- We don't want to read newlines because they matter semantically
   (L.skipLineComment "//")
   (L.skipBlockCommentNested "/*" "*/")
 
@@ -77,7 +77,7 @@ lexeme = L.lexeme sc
 
 newline :: Parser ()
 newline =
-  lexeme (void P.newline P.<|> void P.crlf)
+  lexeme (void P.newline P.<|> void P.crlf) <?> "a newline"
 
 newlines :: Parser ()
 newlines =
@@ -114,7 +114,7 @@ between :: Char -> Char -> Parser a -> Parser a
 between open close p = do
   void $ lexeme (P.char open) *> newlines
   result <- p
-  void $ lexeme (P.char close) *> newlines
+  void (P.char close)
   pure result
 
 parens :: Parser a -> Parser a
@@ -155,9 +155,10 @@ reservedWords =
   , "ffi"
   ]
 
+
 rword :: Text -> Parser ()
 rword rw =
-  (void . lexeme . P.try) (P.string rw <* P.notFollowedBy P.alphaNumChar)
+  (void . lexeme . P.try) (P.string rw <* P.notFollowedBy nameRest) <?> T.unpack rw
 
 reservedWord :: Parser ()
 reservedWord =
@@ -173,20 +174,25 @@ uppername :: Parser Text
 uppername = name' P.upperChar
 
 name' :: Parser Char -> Parser Text
-name' begin = lexeme $ do
+name' begin = do
   P.notFollowedBy reservedWord
   c <- begin
-  rest <- P.many $ P.choice
+  rest <- P.many nameRest
+  pure $ T.pack (c : rest)
+
+nameRest :: Parser Char
+nameRest =
+  P.choice
     [ P.alphaNumChar
     , P.oneOf ['_', '\'', '?']
     ]
-  pure $ T.pack (c : rest)
+
 
 -- * Parser
 
 parseFile :: Parser (File Ann)
 parseFile = do
-  File <$> P.many parseDef
+  File <$> P.many (lexeme parseDef <* newlines1)
 
 parseDef :: Parser (Definition Ann)
 parseDef = do
@@ -202,7 +208,6 @@ parseTermDef =
       v <- lexeme var
       equals
       e <- parseExpr
-      newlines
       pure $ Variable v e
     ]
 
@@ -212,38 +217,33 @@ parseSub =
     [ do
       rword "do" *> newlines
       stmts <- P.some (lexeme parseStmt <* newlines1)
-      rword "end" *> newlines
+      rword "end"
       pure stmts
-    , pure . SExpr <$> (parseExpr <* newlines)
+    , pure . SExpr <$> parseExpr
     ]
 
 parseStmt :: Parser (Statement Ann)
 parseStmt =
   P.choice
-    [ SDef <$> parseTermDef
-    , SExpr <$> parseExpr
+    [ SDef <$> parseTermDef <?> "a definition"
+    , SExpr <$> parseExpr <?> "an expression"
     ]
 
 -- * Expr
 
 parseExpr :: Parser (Expr Ann)
-parseExpr = lexeme $ do
+parseExpr = do
   ann <- getAnn
   e <- parseExpr'
-
-  mspace <- P.optional P.space1
 
   margs <- P.optional $
     parens $ P.sepBy parseExpr comma
 
-  mext <-
-    case mspace of
-      Nothing ->
-        P.optional $ do
-          harddot
-          P.sepBy (var <?> "a label") harddot
-      Just{} ->
-        pure Nothing
+  mlabels <- (<?> "record accessor") $
+    P.optional $ do
+      P.notFollowedBy P.space1
+      harddot
+      P.sepBy (var <?> "a label") harddot
 
   let
     e' = EAnnotated ann
@@ -252,7 +252,7 @@ parseExpr = lexeme $ do
   pure $ maybe
     e'
     (EAnnotated ann . foldl' ERecordAccess e')
-    mext
+    mlabels
 
 parseExpr' :: Parser (Expr Ann)
 parseExpr' =
