@@ -22,6 +22,8 @@ import qualified JS.Ast as JS
 
 -- Types and utilities --
 
+type Ann = ()
+
 type TranState = Int
 type Translate m =
   ( MonadState TranState m
@@ -43,7 +45,7 @@ translate tran built =
 
 -- Translation --
 
-translateFile :: Translate m => File -> m JS.File
+translateFile :: Translate m => File Ann -> m JS.File
 translateFile (File alldefs) = do
   let
     -- we don't need to compile data type definitions
@@ -62,7 +64,7 @@ translateFile (File alldefs) = do
       | hasMain defs
       ]
 
-hasMain :: [TermDef] -> Bool
+hasMain :: [TermDef Ann] -> Bool
 hasMain =
   any
     ( \case
@@ -75,14 +77,14 @@ hasMain =
     )
 
 
-translateDef :: Translate m => TermDef -> m JS.Definition
+translateDef :: Translate m => TermDef Ann -> m JS.Definition
 translateDef = \case
   Variable var expr ->
     JS.Variable var <$> translateExpr expr
   Function var args body ->
     JS.Function var args <$> translateSub body
 
-translateSub :: Translate m => Sub -> m JS.Sub
+translateSub :: Translate m => Sub Ann -> m JS.Sub
 translateSub stmts =
   case reverse stmts of
     [] -> pure []
@@ -93,15 +95,18 @@ translateSub stmts =
     _ ->
       traverse translateStmt stmts
 
-translateStmt :: Translate m => Statement -> m JS.Statement
+translateStmt :: Translate m => Statement Ann -> m JS.Statement
 translateStmt = \case
   SExpr expr ->
     JS.SExpr <$> translateExpr expr
   SDef def ->
     JS.SDef <$> translateDef def
 
-translateExpr :: Translate m => Expr -> m JS.Expr
+translateExpr :: Translate m => Expr Ann -> m JS.Expr
 translateExpr = \case
+  EAnnotated _ e ->
+    translateExpr e
+
   ELit lit ->
     pure $ JS.ELit (translateLit lit)
 
@@ -166,7 +171,7 @@ translateExpr = \case
   EFfi fun args ->
     JS.EFunCall (JS.EVar fun) <$> traverse translateExpr args
 
-translatePatterns :: Translate m => JS.Expr -> [(Pattern, Expr)] -> m JS.Sub
+translatePatterns :: Translate m => JS.Expr -> [(Pattern, Expr Ann)] -> m JS.Sub
 translatePatterns outer = traverse $ \(pat, expr) -> do
   result' <- translateExpr expr
   PatResult conds matches <- translatePattern outer pat

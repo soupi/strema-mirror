@@ -9,54 +9,56 @@ module Strema.Ast
   )
 where
 
+import Data.Data (Data)
 import qualified Data.Text as T
 
 import Strema.Types.Types
 import Strema.Common
 
-data File
-  = File [Definition]
-  deriving Show
+data File a
+  = File [Definition a]
+  deriving (Show, Eq, Ord, Data, Functor, Foldable, Traversable)
 
-data Definition
+data Definition a
   = TypeDef Datatype
-  | TermDef TermDef
-  deriving Show
+  | TermDef (TermDef a)
+  deriving (Show, Eq, Ord, Data, Functor, Foldable, Traversable)
 
-data TermDef
-  = Variable Var Expr
-  | Function Var [Var] Sub
-  deriving Show
+data TermDef a
+  = Variable Var (Expr a)
+  | Function Var [Var] (Sub a)
+  deriving (Show, Eq, Ord, Data, Functor, Foldable, Traversable)
 
-type Sub = [Statement]
+type Sub a = [Statement a]
 
 data Datatype
   = Datatype Constr [TypeVar] [Variant Type]
-  deriving Show
+  deriving (Show, Eq, Ord, Data)
 
-data Statement
-  = SExpr Expr
-  | SDef TermDef
-  deriving Show
+data Statement a
+  = SExpr (Expr a)
+  | SDef (TermDef a)
+  deriving (Show, Eq, Ord, Data, Functor, Foldable, Traversable)
 
-data Expr
-  = ELit Lit
+data Expr a
+  = EAnnotated a (Expr a)
+  | ELit Lit
   | EVar Var
-  | EFun [Var] Sub
-  | EFunCall Expr [Expr]
-  | EVariant (Variant Expr)
-  | ERecord (Record Expr)
-  | ERecordAccess Expr Label
-  | ERecordExtension (Record Expr) Expr
-  | ECase Expr [(Pattern, Expr)]
-  | EFfi T.Text [Expr]
-  deriving Show
+  | EFun [Var] (Sub a)
+  | EFunCall (Expr a) [Expr a]
+  | EVariant (Variant (Expr a))
+  | ERecord (Record (Expr a))
+  | ERecordAccess (Expr a) Label
+  | ERecordExtension (Record (Expr a)) (Expr a)
+  | ECase (Expr a) [(Pattern, Expr a)]
+  | EFfi T.Text [Expr a]
+  deriving (Show, Eq, Ord, Data, Functor, Foldable, Traversable)
 
 data Lit
   = LInt Int
   | LFloat Float
   | LString T.Text
-  deriving Show
+  deriving (Show, Eq, Ord, Data)
 
 data Pattern
   = PWildcard
@@ -64,6 +66,6 @@ data Pattern
   | PLit Lit
   | PVariant (Variant Pattern)
   | PRecord (Record Pattern)
-  deriving Show
+  deriving (Show, Eq, Ord, Data)
 
 type Var = T.Text

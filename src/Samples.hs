@@ -9,30 +9,30 @@ import qualified Data.Map as M
 
 import Strema.Ast as Strm
 
-boilerplate :: Expr -> File
+boilerplate :: Expr () -> File ()
 boilerplate e = File
   [ TermDef $ Function "main" []
     [ SExpr $ EFfi "console.log" [ e ]
     ]
   ]
 
-simple :: File
+simple :: File ()
 simple = boilerplate $
   ELit $ LInt 7
 
-variant :: File
+variant :: File ()
 variant = boilerplate $
   EVariant (Variant "Nil" (ERecord mempty))
 
 -- expected output: 1
-patmatch1 :: File
+patmatch1 :: File ()
 patmatch1 = boilerplate $
   ECase (ELit $ LInt 0)
     [ (PWildcard, ELit $ LInt 1)
     ]
 
 -- expected output: 0
-patmatch2 :: File
+patmatch2 :: File ()
 patmatch2 = boilerplate $
   ECase (ELit $ LInt 0)
     [ (PLit (LInt 1), ELit $ LInt 1)
@@ -40,7 +40,7 @@ patmatch2 = boilerplate $
     ]
 
 -- expected output: 17
-patmatch3 :: File
+patmatch3 :: File ()
 patmatch3 = boilerplate $
   ECase (ELit $ LInt 17)
     [ (PLit (LInt 1), ELit $ LInt 1)
@@ -49,7 +49,7 @@ patmatch3 = boilerplate $
     ]
 
 -- expected output: 0
-patmatch4 :: File
+patmatch4 :: File ()
 patmatch4 = boilerplate $
   ECase
     ( EVariant $ Variant "Nil" $
@@ -62,7 +62,7 @@ patmatch4 = boilerplate $
     ]
 
 -- expected output: 0
-patmatch5 :: File
+patmatch5 :: File ()
 patmatch5 = boilerplate $
   ECase
     ( EVariant $ Variant "Nil" $
@@ -82,7 +82,7 @@ patmatch5 = boilerplate $
     ]
 
 -- expected output: 7
-recordExt :: File
+recordExt :: File ()
 recordExt = boilerplate $
   ERecordAccess
     ( ERecordExtension
@@ -95,6 +95,6 @@ recordExt = boilerplate $
     "x"
 
 -- expected output: 2
-addition :: File
+addition :: File ()
 addition = boilerplate $
   EFunCall (EVar "add") [ ELit $ LInt 1, ELit $ LInt 1 ]

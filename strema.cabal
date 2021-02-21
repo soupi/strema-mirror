@@ -25,6 +25,7 @@ library
     Strema.Builtins
     Strema.Common
     Strema.Types.Types
+    Strema.Parser
     Translate
 
     Samples
@@ -66,6 +67,7 @@ test-suite strema-test
   other-modules:
     Tests.PrettySpec
     Tests.TranslateSpec
+    Tests.ParserSpec
   build-depends:       base
                      , strema
                      , text
@@ -74,6 +76,7 @@ test-suite strema-test
                      , hspec
                      , QuickCheck
                      , process
+                     , raw-strings-qq
 
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010

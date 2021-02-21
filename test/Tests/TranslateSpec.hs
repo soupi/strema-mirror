@@ -280,12 +280,12 @@ bools = do
 
 --------------------------------------------
 
-check :: File -> String -> IO ()
+check :: File () -> String -> IO ()
 check file expected = do
   result <- readProcess "nodejs" [] (T.unpack $ compile file)
   shouldBe result (expected <> "\n")
 
-boilerplate :: Expr -> File
+boilerplate :: Expr () -> File ()
 boilerplate e = File
   [ TermDef $ Function "main" []
     [ SExpr $ EFfi "console.log" [ e ]

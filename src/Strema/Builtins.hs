@@ -57,13 +57,13 @@ tBool = TypeCon "Bool"
 
 -- * Values
 
-true :: Expr
+true :: Expr ()
 true = EVariant (Variant "True" unit)
 
-false :: Expr
+false :: Expr ()
 false = EVariant (Variant "False" unit)
 
-unit :: Expr
+unit :: Expr ()
 unit = ERecord mempty
 
 -- * datatypes

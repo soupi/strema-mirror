@@ -1,5 +1,6 @@
 module Strema.Common where
 
+import Data.Data (Data)
 import qualified Data.Text as T
 import qualified Data.Map as M
 
@@ -13,4 +14,4 @@ type Record a
 
 data Variant a
   = Variant Constr a
-  deriving Show
+  deriving (Show, Eq, Ord, Data, Functor, Foldable, Traversable)
