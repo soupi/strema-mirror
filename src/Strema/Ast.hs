@@ -11,6 +11,7 @@ where
 
 import Data.Data (Data)
 import qualified Data.Text as T
+import qualified Data.Map as M
 
 import Strema.Types.Types
 import Strema.Common
@@ -21,7 +22,7 @@ data File a
 
 data Definition a
   = TypeDef Datatype
-  | TermDef (TermDef a)
+  | TermDef a (TermDef a)
   deriving (Show, Eq, Ord, Data, Functor, Foldable, Traversable)
 
 data TermDef a
@@ -50,7 +51,7 @@ data Expr a
   | ERecord (Record (Expr a))
   | ERecordAccess (Expr a) Label
   | ERecordExtension (Record (Expr a)) (Expr a)
-  | ECase (Expr a) [(Pattern, Expr a)]
+  | ECase (Expr a) [(Pattern, Sub a)]
   | EFfi T.Text [Expr a]
   deriving (Show, Eq, Ord, Data, Functor, Foldable, Traversable)
 
@@ -69,3 +70,8 @@ data Pattern
   deriving (Show, Eq, Ord, Data)
 
 type Var = T.Text
+
+mkERec :: [(Label, Expr a)] -> Maybe (Expr a) -> Expr a
+mkERec fields = maybe
+  (ERecord $ M.fromListWith (flip const) fields)
+  (ERecordExtension $ M.fromListWith (flip const) fields)

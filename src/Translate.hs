@@ -52,7 +52,7 @@ translateFile (File alldefs) = do
     defs =
       mapMaybe
       ( \case
-        TermDef def -> Just def
+        TermDef _ def -> Just def
         TypeDef{} -> Nothing
       )
       alldefs
@@ -171,14 +171,14 @@ translateExpr = \case
   EFfi fun args ->
     JS.EFunCall (JS.EVar fun) <$> traverse translateExpr args
 
-translatePatterns :: Translate m => JS.Expr -> [(Pattern, Expr Ann)] -> m JS.Sub
-translatePatterns outer = traverse $ \(pat, expr) -> do
-  result' <- translateExpr expr
+translatePatterns :: Translate m => JS.Expr -> [(Pattern, Sub Ann)] -> m JS.Sub
+translatePatterns outer = traverse $ \(pat, sub) -> do
+  result' <- translateSub sub
   PatResult conds matches <- translatePattern outer pat
   let (matchersV, matchersE) = unzip matches
   pure $ JS.SIf (JS.EAnd conds)
     [ JS.SRet $ JS.EFunCall
-      ( JS.EFun matchersV [ JS.SRet result' ] )
+      ( JS.EFun matchersV result' )
       matchersE
     ]
 

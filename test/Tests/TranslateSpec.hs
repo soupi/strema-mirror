@@ -123,7 +123,7 @@ patmatch = do
       check
         ( boilerplate $
           ECase (ELit $ LInt 0)
-          [ (PWildcard, ELit $ LInt 1)
+          [ (PWildcard, pure . SExpr $ ELit $ LInt 1)
           ]
         )
         "1"
@@ -132,8 +132,8 @@ patmatch = do
       check
         ( boilerplate $
           ECase (ELit $ LInt 0)
-          [ (PLit (LInt 1), ELit $ LInt 1)
-          , (PLit (LInt 0), ELit $ LInt 0)
+          [ (PLit (LInt 1), pure . SExpr $ ELit $ LInt 1)
+          , (PLit (LInt 0), pure . SExpr $ ELit $ LInt 0)
           ]
         )
         "0"
@@ -142,9 +142,9 @@ patmatch = do
       check
         ( boilerplate $
           ECase (ELit $ LInt 17)
-          [ (PLit (LInt 1), ELit $ LInt 1)
-          , (PLit (LInt 0), ELit $ LInt 0)
-          , (PVar "v", EVar "v")
+          [ (PLit (LInt 1), pure . SExpr $ ELit $ LInt 1)
+          , (PLit (LInt 0), pure . SExpr $ ELit $ LInt 0)
+          , (PVar "v", pure . SExpr $ EVar "v")
           ]
         )
         "17"
@@ -159,7 +159,7 @@ patmatch = do
             , ("tail", ERecord mempty)
             ]
           )
-          [ (PVariant $ Variant "Nil" (PVar "obj"), ERecordAccess (EVar "obj") "head")
+          [ (PVariant $ Variant "Nil" (PVar "obj"), pure . SExpr $ ERecordAccess (EVar "obj") "head")
           ]
         )
         "0"
@@ -180,7 +180,7 @@ patmatch = do
                 , ("tail", PRecord mempty)
                 ]
               )
-            , EVar "head"
+            , pure . SExpr $ EVar "head"
             )
           ]
         )
@@ -190,11 +190,11 @@ patmatch = do
       check
         ( boilerplate $
           ECase (ELit $ LInt 0)
-          [ (PLit (LInt 1), ELit $ LInt 1)
+          [ (PLit (LInt 1), pure . SExpr $ ELit $ LInt 1)
           , ( PLit (LInt 0)
-            , ECase (ELit $ LInt 99)
-              [ (PLit (LInt 1), ELit $ LInt 1)
-              , (PVar "n", EVar "n")
+            , pure . SExpr $ ECase (ELit $ LInt 99)
+              [ (PLit (LInt 1), pure . SExpr $ ELit $ LInt 1)
+              , (PVar "n", pure . SExpr $ EVar "n")
               ]
             )
           ]
@@ -287,7 +287,7 @@ check file expected = do
 
 boilerplate :: Expr () -> File ()
 boilerplate e = File
-  [ TermDef $ Function "main" []
+  [ TermDef () $ Function "main" []
     [ SExpr $ EFfi "console.log" [ e ]
     ]
   ]

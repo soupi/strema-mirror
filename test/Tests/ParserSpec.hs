@@ -6,7 +6,9 @@ module Tests.ParserSpec where
 
 import Strema.Ast
 import Strema.Parser
+import Strema.Rewrites.RemoveAnn
 
+import Data.Data (Data)
 import Test.Hspec
 import Text.RawString.QQ
 import qualified Data.Text as T
@@ -22,6 +24,8 @@ spec = do
   describe "parser" $ do
     lits
     records
+    expressions
+    programs
 
 lits :: Spec
 lits = do
@@ -90,18 +94,18 @@ records = do
   describe "records" $ do
     it "{}" $
       shouldBe
-        (testParser (parseRecord parseExpr parseExpr) "{}")
+        (testParser (parseRecord parseExpr $ Just parseExpr) "{}")
         (pure (mempty, Nothing))
 
     it "{} with spaces" $
       shouldBe
-        (testParser (parseRecord parseExpr parseExpr) "{    \n }")
+        (testParser (parseRecord parseExpr $ Just parseExpr) "{    \n }")
         (pure (mempty, Nothing))
 
     it "x, y" $
       shouldBe
         ( testParser
-          (parseRecord parseLit parseLit)
+          parseLitRecord
           [r|{ x = "hello", y = -1.1 } |]
         )
         ( pure
@@ -116,7 +120,7 @@ records = do
     it "duplicate labels" $
       shouldBe
         ( testParser
-          (parseRecord parseLit parseLit)
+          parseLitRecord
           [r|{ a = "hello", a = 2, a = -1.1 } |]
         )
         ( pure
@@ -127,6 +131,244 @@ records = do
           )
         )
 
+expressions :: Spec
+expressions = do
+  describe "expressions" $ do
+    vars
+    recordsExpr
+    functions
+    cases
+
+vars :: Spec
+vars = do
+  describe "variables" $ do
+    it "single letter" $
+      shouldBe
+        (testParserNoAnn parseExpr "v")
+        (pure $ EVar "v")
+
+    it "multiple mixed letters" $
+      shouldBe
+        (testParserNoAnn parseExpr "vAcBkFx")
+        (pure $ EVar "vAcBkFx")
+
+    it "with numbers" $
+      shouldBe
+        (testParserNoAnn parseExpr "v123")
+        (pure $ EVar "v123")
+
+    it "with symbols" $
+      shouldBe
+        (testParserNoAnn parseExpr "v_123?")
+        (pure $ EVar "v_123?")
+
+recordsExpr :: Spec
+recordsExpr = do
+  describe "records" $ do
+    it "one item" $
+      shouldBe
+        (testParserNoAnn parseExpr "{ a = f(x) }")
+        ( pure $ mkERec
+          [("a", EFunCall (EVar "f") [EVar "x"])]
+          Nothing
+        )
+
+    it "two items" $
+      shouldBe
+        (testParserNoAnn parseExpr [r|{ a = f(x), b = "hello" }|])
+        ( pure $ mkERec
+          [ ("a", EFunCall (EVar "f") [EVar "x"])
+          , ("b", ELit $ LString "hello")
+          ]
+          Nothing
+        )
+
+    it "extension" $
+      shouldBe
+        (testParserNoAnn parseExpr [r|{ a = f(x), b = "hello" | r }|])
+        ( pure $ mkERec
+          [ ("a", EFunCall (EVar "f") [EVar "x"])
+          , ("b", ELit $ LString "hello")
+          ]
+          (Just $ EVar "r")
+        )
+
+    it "access" $
+      shouldBe
+        (testParserNoAnn parseExpr [r|record.x.y.z|])
+        ( pure $
+          ERecordAccess
+            ( ERecordAccess
+              (ERecordAccess (EVar "record") "x")
+              "y"
+            )
+            "z"
+        )
+
+
+functions :: Spec
+functions = do
+  describe "functions" $ do
+    it "f(x)" $
+      shouldBe
+        (testParserNoAnn parseExpr "f(x)")
+        ( pure $ EFunCall (EVar "f") [EVar "x"]
+        )
+
+    it "f(x,  y,z)" $
+      shouldBe
+        (testParserNoAnn parseExpr "f(x,  y,z)")
+        ( pure $ EFunCall (EVar "f") [EVar "x", EVar "y", EVar "z"]
+        )
+
+    it "(fun (x,y): add(x , y))(1, 2)" $
+      shouldBe
+        (testParserNoAnn parseExpr "(fun (x,y): add(x , y))(1, 2)")
+        ( pure $
+          EFunCall
+            ( EFun ["x","y"]
+              [SExpr $ EFunCall (EVar "add") [EVar "x", EVar "y"]]
+            )
+            [ELit $ LInt 1, ELit $ LInt 2]
+        )
+
+
+cases :: Spec
+cases = do
+  describe "cases of" $ do
+    it "simple" $
+      shouldBe
+        (testParserNoAnn parseExpr "case x of | 1 -> 1 end")
+        ( pure $
+          ECase (EVar "x")
+          [(PLit $ LInt 1, pure . SExpr $ ELit $ LInt 1)]
+        )
+
+    it "mutlicase" $
+      shouldBe
+        ( testParserNoAnn parseExpr
+          [r|case x of
+            | v -> v
+            | _ -> x.y
+            | Constr {} -> {}
+            | Constr { a = 1 } -> 1
+            end
+          |]
+        )
+        ( pure $
+          ECase (EVar "x")
+          [ (PVar "v", pure . SExpr $ EVar "v")
+          , (PWildcard, pure . SExpr $ ERecordAccess (EVar "x") "y")
+          , ( PVariant (Variant "Constr" $ PRecord mempty)
+            , pure . SExpr $ ERecord mempty
+            )
+          , ( PVariant
+              ( Variant "Constr" $
+                PRecord $ M.fromList [("a", PLit $ LInt 1)]
+              )
+            , pure . SExpr $ ELit (LInt 1)
+            )
+          ]
+        )
+
+programs :: Spec
+programs = do
+  describe "programs" $ do
+    it "type, let, fun" $
+      shouldBe
+        (testParserNoAnn parseFile [r|
+type List a =
+    | Nil {}
+    | Cons { head = a, tail = List a }
+end
+
+fun length(xs): do
+    case xs of
+        | Nil {} -> 0
+        | Cons { head = _, tail = rest } -> do
+            let res = add(1, length(rest))
+            res
+        end
+    end
+end
+
+fun main(): do
+    ffi("console.log", length(Cons { head = 1, tail = Cons { head = 2, tail = Nil {} } }))
+end
+|]
+        )
+        ( pure $ File
+          [ TypeDef
+              ( Datatype "List" [ "a" ]
+                  [ Variant "Nil" (TypeRec [])
+                  , Variant "Cons" $ TypeRec
+                    [ ("head", TypeVar "a")
+                    , ("tail", TypeApp (TypeCon "List") (TypeVar "a"))
+                    ]
+                  ]
+              )
+          , TermDef ()
+            ( Function "length" [ "xs" ]
+              [ SExpr
+                ( ECase ( EVar "xs" )
+                  [ ( PVariant (Variant "Nil" (PRecord mempty))
+                    , [ SExpr (ELit (LInt 0)) ]
+                    )
+                  , ( PVariant $ Variant "Cons"
+                      ( PRecord $ M.fromList
+                        [ ("head", PWildcard)
+                        , ("tail", PVar "rest")
+                        ]
+                      )
+                    , [ SDef $ Variable "res"
+                        ( EFunCall ( EVar "add" )
+                          [ ELit ( LInt 1 )
+                          , EFunCall ( EVar "length" ) [ EVar "rest" ]
+                          ]
+                         )
+                       , SExpr ( EVar "res" )
+                       ]
+                    )
+                  ]
+                )
+              ]
+            )
+          , TermDef () $ Function "main" []
+            [ SExpr
+              ( EFfi "console.log"
+                [ EFunCall ( EVar "length" )
+                  [ EVariant $ Variant "Cons"
+                    ( ERecord $ M.fromList
+                      [ ("head", ELit (LInt 1))
+                      , ("tail", EVariant $ Variant "Cons"
+                          ( ERecord $ M.fromList
+                            [ ("head", ELit (LInt 2))
+                            , ("tail", EVariant $ Variant "Nil" (ERecord mempty))
+                            ]
+                          )
+                        )
+                      ]
+                    )
+                  ]
+                ]
+              )
+            ]
+          ]
+        )
+
+
+----------------------
+
 testParser :: Parser a -> T.Text -> Either T.Text a
 testParser p src =
   runParser p "test" src
+
+testParserNoAnn
+  :: Functor f => Data a => Data (f ())
+  => Parser (f a) -> T.Text -> Either T.Text (f ())
+testParserNoAnn p src =
+  removeAnn' <$> testParser p src
+
+parseLitRecord :: Parser (Record Lit, Maybe ())
+parseLitRecord = parseRecord parseLit Nothing
+

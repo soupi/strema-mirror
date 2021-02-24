@@ -11,7 +11,7 @@ import Strema.Ast as Strm
 
 boilerplate :: Expr () -> File ()
 boilerplate e = File
-  [ TermDef $ Function "main" []
+  [ TermDef () $ Function "main" []
     [ SExpr $ EFfi "console.log" [ e ]
     ]
   ]
@@ -28,24 +28,24 @@ variant = boilerplate $
 patmatch1 :: File ()
 patmatch1 = boilerplate $
   ECase (ELit $ LInt 0)
-    [ (PWildcard, ELit $ LInt 1)
+    [ (PWildcard, pure . SExpr $ ELit $ LInt 1)
     ]
 
 -- expected output: 0
 patmatch2 :: File ()
 patmatch2 = boilerplate $
   ECase (ELit $ LInt 0)
-    [ (PLit (LInt 1), ELit $ LInt 1)
-    , (PLit (LInt 0), ELit $ LInt 0)
+    [ (PLit (LInt 1), pure . SExpr $ ELit $ LInt 1)
+    , (PLit (LInt 0), pure . SExpr $ ELit $ LInt 0)
     ]
 
 -- expected output: 17
 patmatch3 :: File ()
 patmatch3 = boilerplate $
   ECase (ELit $ LInt 17)
-    [ (PLit (LInt 1), ELit $ LInt 1)
-    , (PLit (LInt 0), ELit $ LInt 0)
-    , (PVar "v", EVar "v")
+    [ (PLit (LInt 1), pure . SExpr $ ELit $ LInt 1)
+    , (PLit (LInt 0), pure . SExpr $ ELit $ LInt 0)
+    , (PVar "v", pure . SExpr $ EVar "v")
     ]
 
 -- expected output: 0
@@ -58,7 +58,7 @@ patmatch4 = boilerplate $
         , ("tail", ERecord mempty)
         ]
     )
-    [ (PVariant $ Variant "Nil" (PVar "obj"), ERecordAccess (EVar "obj") "head")
+    [ (PVariant $ Variant "Nil" (PVar "obj"), pure . SExpr $ ERecordAccess (EVar "obj") "head")
     ]
 
 -- expected output: 0
@@ -77,7 +77,7 @@ patmatch5 = boilerplate $
           , ("tail", PRecord mempty)
           ]
         )
-      , EVar "head"
+      , pure . SExpr $ EVar "head"
       )
     ]
 

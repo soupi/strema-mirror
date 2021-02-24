@@ -3,7 +3,7 @@
 Here's an example Strema program that we are going to parse:
 
 @
-datatype List a =
+type List a =
     | Nil {}
     | Cons { head = a, tail = List a }
 end
@@ -59,7 +59,10 @@ getAnn = P.getSourcePos
 runParser :: Parser a -> FilePath -> Text -> Either Text a
 runParser p file src =
   first (T.pack . P.errorBundlePretty) $
-    P.runParser (lexeme (pure ()) *> newlines *> lexeme p <* newlines <* P.eof) file src
+    P.runParser
+      (lexeme (pure ()) *> newlines *> lexeme p <* newlines <* P.eof)
+      file
+      src
 
 -- * Lexing
 
@@ -97,6 +100,9 @@ equals = symbol "="
 
 arrow :: Parser ()
 arrow = symbol "->"
+
+underscore :: Parser ()
+underscore = symbol "_"
 
 comma :: Parser ()
 comma = symbol ","
@@ -151,7 +157,6 @@ reservedWords =
   , "end"
   , "case"
   , "of"
-  , "datatype"
   , "ffi"
   ]
 
@@ -166,6 +171,12 @@ reservedWord =
 
 var :: Parser Text
 var = lowername <?> "a variable"
+
+typevar :: Parser Text
+typevar = lowername <?> "a type variable"
+
+typename :: Parser Text
+typename = uppername <?> "a type name"
 
 lowername :: Parser Text
 lowername = name' P.lowerChar
@@ -196,9 +207,49 @@ parseFile = do
 
 parseDef :: Parser (Definition Ann)
 parseDef = do
+  ann <- getAnn
   P.choice
-    [ TermDef <$> parseTermDef
+    [ TermDef ann <$> parseTermDef
+    , TypeDef <$> parseTypeDef
     ]
+
+-- * Types
+
+
+parseTypeDef :: Parser Datatype
+parseTypeDef = do
+  rword "type"
+  name <- lexeme typename <* newlines
+  args <- P.many
+    (lexeme typevar <* newlines)
+  equals *> newlines
+  typ <- P.many
+    (bar *> lexeme (parseVariant parseType) <* newlines)
+  rword "end"
+  pure $ Datatype name args typ
+
+parseType :: Parser Type
+parseType = do
+  t <- (lexeme parseType' <* newlines)
+  args <- P.many (lexeme parseType' <* newlines)
+  pure $ foldl' TypeApp t args
+
+parseType' :: Parser Type
+parseType' =
+  P.choice
+    [ parens parseType
+    , TypeVar <$> typevar
+    , TypeCon <$> typename
+    , TypeFun
+      <$> (brackets $ P.sepBy (lexeme parseType <* newlines) comma)
+      <*> (arrow *> parseType)
+      <?> "type function"
+    , TypeRec . M.toList . fst
+      <$> parseRecord parseType Nothing
+      <?> "type record"
+    ]
+
+-- * Terms
 
 parseTermDef :: Parser (TermDef Ann)
 parseTermDef =
@@ -209,6 +260,13 @@ parseTermDef =
       equals
       e <- parseExpr
       pure $ Variable v e
+    , do
+      rword "fun"
+      name <- lexeme var
+      args <- parens $ P.sepBy (lexeme var <* newlines) comma
+      colon
+      sub <- parseSub
+      pure $ Function name args sub
     ]
 
 parseSub :: Parser (Sub Ann)
@@ -216,7 +274,7 @@ parseSub =
   P.choice
     [ do
       rword "do" *> newlines
-      stmts <- P.some (lexeme parseStmt <* newlines1)
+      stmts <- P.some (lexeme parseStmt <* (newlines1 P.<|> P.eof))
       rword "end"
       pure stmts
     , pure . SExpr <$> parseExpr
@@ -237,7 +295,7 @@ parseExpr = do
   e <- parseExpr'
 
   margs <- P.optional $
-    parens $ P.sepBy parseExpr comma
+    parens $ P.sepBy (lexeme parseExpr <* newlines) comma
 
   mlabels <- (<?> "record accessor") $
     P.optional $ do
@@ -256,12 +314,13 @@ parseExpr = do
 
 parseExpr' :: Parser (Expr Ann)
 parseExpr' =
-  P.choice
+  (<?> "an expression") $ P.choice
     [ parens parseExpr <?> "parenthesis"
     , parseFfi <?> "an ffi call"
+    , parseCaseOf <?> "a case expression"
     , parseLambda <?> "a lambda"
     , (<?> "a record") $ do
-      (record, mext) <- parseRecord parseExpr parseExpr
+      (record, mext) <- parseRecord parseExpr (Just parseExpr)
       pure $ maybe
         (ERecord record)
         (ERecordExtension record)
@@ -273,18 +332,48 @@ parseExpr' =
     , EVar <$> var
     ]
 
+parseCaseOf :: Parser (Expr Ann)
+parseCaseOf = do
+  rword "case" *> newlines
+  e <- lexeme parseExpr
+  rword "of" *> newlines
+  pats <- parsePatterns
+  rword "end"
+  pure $ ECase e pats
+
+parsePatterns :: Parser [(Pattern, Sub Ann)]
+parsePatterns = P.many $
+  (,)
+    <$> (bar *> lexeme parsePattern <* newlines)
+    <*> (arrow *> lexeme parseSub <* newlines)
+
+parsePattern :: Parser Pattern
+parsePattern =
+  (<?> "a pattern") $ P.choice
+    [ parens parsePattern
+    , PWildcard <$ underscore
+    , PVar <$> var
+    , PLit <$> parseLit
+    , PRecord . fst
+      <$> parseRecord parsePattern Nothing
+      <?> "a record pattern"
+    , PVariant
+      <$> parseVariant (lexeme parsePattern <* newlines)
+      <?> "a variant pattern"
+    ]
+
 parseFfi :: Parser (Expr Ann)
 parseFfi = do
   rword "ffi"
   parens $ do
     EFfi
       <$> (lexeme stringLiteral <* comma)
-      <*> P.sepBy parseExpr comma
+      <*> P.sepBy (lexeme parseExpr <* newlines) comma
 
 parseLambda :: Parser (Expr Ann)
 parseLambda = do
   rword "fun"
-  args <- parens $ P.sepBy var comma
+  args <- parens $ P.sepBy (lexeme var <* newlines) comma
   lexeme colon *> newlines
   sub <- parseSub
   pure $ EFun args sub
@@ -301,11 +390,11 @@ parseLit =
 parseVariant :: Parser a -> Parser (Variant a)
 parseVariant p =
   Variant
-    <$> (uppername <?> "data constructor")
+    <$> (lexeme uppername <* newlines <?> "data constructor")
     <*> p
 
-parseRecord :: Parser a -> Parser b -> Parser (Record a, Maybe b)
-parseRecord pa pb = braces $ do
+parseRecord :: Parser a -> Maybe (Parser b) -> Parser (Record a, Maybe b)
+parseRecord pa mpb = braces $ do
   -- we are going to allow records with duplicate
   -- labels. Semantically, this means that
   -- the first label matches and the rest
@@ -320,9 +409,12 @@ parseRecord pa pb = braces $ do
         )
         comma
 
-  ext <- P.optional $ do
-    bar
-    pb
+  ext <-
+    case mpb of
+      Just pb ->
+        P.optional $ bar *> lexeme pb <* newlines
+      Nothing ->
+        pure Nothing
 
   pure (record, ext)
     
