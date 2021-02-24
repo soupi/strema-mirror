@@ -94,12 +94,12 @@ records = do
   describe "records" $ do
     it "{}" $
       shouldBe
-        (testParser (parseRecord parseExpr $ Just parseExpr) "{}")
+        (testParser (parseRecord equals parseExpr $ Just parseExpr) "{}")
         (pure (mempty, Nothing))
 
     it "{} with spaces" $
       shouldBe
-        (testParser (parseRecord parseExpr $ Just parseExpr) "{    \n }")
+        (testParser (parseRecord equals parseExpr $ Just parseExpr) "{    \n }")
         (pure (mempty, Nothing))
 
     it "x, y" $
@@ -274,12 +274,12 @@ cases = do
 programs :: Spec
 programs = do
   describe "programs" $ do
-    it "type, let, fun" $
+    it "length" $
       shouldBe
         (testParserNoAnn parseFile [r|
 type List a =
     | Nil {}
-    | Cons { head = a, tail = List a }
+    | Cons { head : a, tail : List a }
 end
 
 fun length(xs): do
@@ -370,5 +370,5 @@ testParserNoAnn p src =
   removeAnn' <$> testParser p src
 
 parseLitRecord :: Parser (Record Lit, Maybe ())
-parseLitRecord = parseRecord parseLit Nothing
+parseLitRecord = parseRecord equals parseLit Nothing
 

@@ -203,7 +203,7 @@ nameRest =
 
 parseFile :: Parser (File Ann)
 parseFile = do
-  File <$> P.many (lexeme parseDef <* newlines1)
+  File <$> P.many (lexeme parseDef <* (newlines1 P.<|> P.eof))
 
 parseDef :: Parser (Definition Ann)
 parseDef = do
@@ -245,7 +245,7 @@ parseType' =
       <*> (arrow *> parseType)
       <?> "type function"
     , TypeRec . M.toList . fst
-      <$> parseRecord parseType Nothing
+      <$> parseRecord colon parseType Nothing
       <?> "type record"
     ]
 
@@ -320,7 +320,7 @@ parseExpr' =
     , parseCaseOf <?> "a case expression"
     , parseLambda <?> "a lambda"
     , (<?> "a record") $ do
-      (record, mext) <- parseRecord parseExpr (Just parseExpr)
+      (record, mext) <- parseRecord equals parseExpr (Just parseExpr)
       pure $ maybe
         (ERecord record)
         (ERecordExtension record)
@@ -355,7 +355,7 @@ parsePattern =
     , PVar <$> var
     , PLit <$> parseLit
     , PRecord . fst
-      <$> parseRecord parsePattern Nothing
+      <$> parseRecord equals parsePattern Nothing
       <?> "a record pattern"
     , PVariant
       <$> parseVariant (lexeme parsePattern <* newlines)
@@ -393,8 +393,8 @@ parseVariant p =
     <$> (lexeme uppername <* newlines <?> "data constructor")
     <*> p
 
-parseRecord :: Parser a -> Maybe (Parser b) -> Parser (Record a, Maybe b)
-parseRecord pa mpb = braces $ do
+parseRecord :: Parser () -> Parser a -> Maybe (Parser b) -> Parser (Record a, Maybe b)
+parseRecord pSym pa mpb = braces $ do
   -- we are going to allow records with duplicate
   -- labels. Semantically, this means that
   -- the first label matches and the rest
@@ -404,7 +404,7 @@ parseRecord pa mpb = braces $ do
       P.sepBy
         ( do
           l <- lexeme lowername <?> "a label"
-          equals *> newlines
+          pSym *> newlines
           (,) l <$> (lexeme pa <* newlines)
         )
         comma

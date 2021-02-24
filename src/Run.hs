@@ -31,7 +31,7 @@ run = do
   opts <- unwrapRecord "stremac"
   case opts of
     Compile inputFile outputFile -> do
-      process compileText inputFile outputFile
+      process compile inputFile outputFile
 
     Parse inputFile outputFile -> do
       process

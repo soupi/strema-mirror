@@ -282,7 +282,7 @@ bools = do
 
 check :: File () -> String -> IO ()
 check file expected = do
-  result <- readProcess "nodejs" [] (T.unpack $ compile file)
+  result <- readProcess "nodejs" [] (T.unpack $ translate' file)
   shouldBe result (expected <> "\n")
 
 boilerplate :: Expr () -> File ()

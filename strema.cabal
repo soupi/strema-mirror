@@ -18,17 +18,20 @@ library
 
   exposed-modules:
     Compile
+    Translate
+    Run
+
     JS
     JS.Ast
     JS.Pretty
+
     Strema.Ast
     Strema.Builtins
     Strema.Common
-    Strema.Rewrites.RemoveAnn
     Strema.Types.Types
     Strema.Parser
-    Translate
-    Run
+    Strema.Rewrites
+      Strema.Rewrites.RemoveAnn
 
     Samples
 
@@ -72,9 +75,10 @@ test-suite strema-test
   main-is:             Spec.hs
 
   other-modules:
+    Tests.CompileSpec
+    Tests.ParserSpec
     Tests.PrettySpec
     Tests.TranslateSpec
-    Tests.ParserSpec
   build-depends:       base
                      , strema
                      , text
