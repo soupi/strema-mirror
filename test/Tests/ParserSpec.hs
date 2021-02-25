@@ -221,9 +221,9 @@ functions = do
         ( pure $ EFunCall (EVar "f") [EVar "x", EVar "y", EVar "z"]
         )
 
-    it "(fun (x,y): add(x , y))(1, 2)" $
+    it "(fun (x,y) -> add(x , y))(1, 2)" $
       shouldBe
-        (testParserNoAnn parseExpr "(fun (x,y): add(x , y))(1, 2)")
+        (testParserNoAnn parseExpr "(fun (x,y) -> add(x , y))(1, 2)")
         ( pure $
           EFunCall
             ( EFun ["x","y"]
@@ -282,17 +282,17 @@ type List a =
     | Cons { head : a, tail : List a }
 end
 
-fun length(xs): do
+def length(xs) := do
     case xs of
         | Nil {} -> 0
         | Cons { head = _, tail = rest } -> do
-            let res = add(1, length(rest))
+            def res := add(1, length(rest))
             res
         end
     end
 end
 
-fun main(): do
+def main() := do
     ffi("console.log", length(Cons { head = 1, tail = Cons { head = 2, tail = Nil {} } }))
 end
 |]

@@ -8,17 +8,17 @@ type List a =
     | Cons { head : a, tail : List a }
 end
 
-def length(xs): do
+def length(xs) := do
     case xs of
         | Nil {} -> 0
         | Cons { head = _, tail = rest } -> do
-            def res: add(1, length(rest))
+            def res := add(1, length(rest))
             res
         end
     end
 end
 
-def main(): do
+def main() := do
     ffi("console.log", length(Cons { head = 1, tail = Cons { head = 2, tail = Nil {} } }))
 end
 @
@@ -116,6 +116,9 @@ harddot = void $ P.char '.'
 
 colon :: Parser ()
 colon = symbol ":"
+
+assign :: Parser ()
+assign = symbol ":=" *> newlines
 
 between :: Char -> Char -> Parser a -> Parser a
 between open close p = do
@@ -255,8 +258,8 @@ parseTermDef :: Parser (TermDef Ann)
 parseTermDef = do
   rword "def"
   name <- lexeme var
-  margs <- P.optional $ parens $ P.sepBy (lexeme var <* newlines) comma
-  colon <* newlines
+  margs <- P.optional $ lexeme $ parens $ P.sepBy (lexeme var <* newlines) comma
+  assign
   maybe
     (Variable name <$> parseExpr)
     (\args -> Function name args <$> parseSub)
@@ -366,8 +369,8 @@ parseFfi = do
 parseLambda :: Parser (Expr Ann)
 parseLambda = do
   rword "fun"
-  args <- parens $ P.sepBy (lexeme var <* newlines) comma
-  lexeme colon *> newlines
+  args <- lexeme $ parens $ P.sepBy (lexeme var <* newlines) comma
+  arrow *> newlines
   sub <- parseSub
   pure $ EFun args sub
 
@@ -393,7 +396,7 @@ parseRecord pSym pa mpb = braces $ do
   -- the first label matches and the rest
   -- are discarded.
   record <- fmap
-    (M.fromListWith $ flip const) $
+    (M.fromListWith $ flip const) $ lexeme $
       P.sepBy
         ( do
           l <- lexeme lowername <?> "a label"
