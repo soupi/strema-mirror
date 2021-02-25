@@ -24,6 +24,7 @@ library
     JS
     JS.Ast
     JS.Pretty
+    JS.ReservedWords
 
     Strema.Ast
     Strema.Builtins

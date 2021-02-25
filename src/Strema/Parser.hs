@@ -5,20 +5,20 @@ Here's an example Strema program that we are going to parse:
 @
 type List a =
     | Nil {}
-    | Cons { head = a, tail = List a }
+    | Cons { head : a, tail : List a }
 end
 
-fun length(xs): do
+def length(xs): do
     case xs of
         | Nil {} -> 0
         | Cons { head = _, tail = rest } -> do
-            let res = add(1, length(rest))
+            def res: add(1, length(rest))
             res
         end
     end
 end
 
-fun main(): do
+def main(): do
     ffi("console.log", length(Cons { head = 1, tail = Cons { head = 2, tail = Nil {} } }))
 end
 @
@@ -40,6 +40,7 @@ import Text.Megaparsec ((<?>))
 import qualified Text.Megaparsec as P
 import qualified Text.Megaparsec.Char as P
 import qualified Text.Megaparsec.Char.Lexer as L
+import qualified JS as JS
 
 import Strema.Ast
 
@@ -96,10 +97,10 @@ symbol :: Text -> Parser ()
 symbol = void . L.symbol sc
 
 equals :: Parser ()
-equals = symbol "="
+equals = symbol "=" *> newlines
 
 arrow :: Parser ()
-arrow = symbol "->"
+arrow = symbol "->" *> newlines
 
 underscore :: Parser ()
 underscore = symbol "_"
@@ -150,9 +151,8 @@ number = do
       pure $ LFloat (read $ maybe [] pure sign <> num1 <> "." <> n)
 
 reservedWords :: [Text]
-reservedWords =
-  [ "let"
-  , "fun"
+reservedWords = (<>) JS.reservedWords
+  [ "def"
   , "do"
   , "end"
   , "case"
@@ -252,22 +252,15 @@ parseType' =
 -- * Terms
 
 parseTermDef :: Parser (TermDef Ann)
-parseTermDef =
-  P.choice
-    [ do
-      rword "let"
-      v <- lexeme var
-      equals
-      e <- parseExpr
-      pure $ Variable v e
-    , do
-      rword "fun"
-      name <- lexeme var
-      args <- parens $ P.sepBy (lexeme var <* newlines) comma
-      colon
-      sub <- parseSub
-      pure $ Function name args sub
-    ]
+parseTermDef = do
+  rword "def"
+  name <- lexeme var
+  margs <- P.optional $ parens $ P.sepBy (lexeme var <* newlines) comma
+  colon <* newlines
+  maybe
+    (Variable name <$> parseExpr)
+    (\args -> Function name args <$> parseSub)
+    margs
 
 parseSub :: Parser (Sub Ann)
 parseSub =
