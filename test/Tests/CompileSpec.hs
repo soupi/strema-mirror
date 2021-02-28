@@ -8,8 +8,6 @@ import Compile
 import Test.Hspec
 import Text.RawString.QQ
 import qualified Data.Text as T
-import qualified Data.Map as M
-import qualified Data.Text.IO as T
 
 import System.Process (readProcess)
 
@@ -61,7 +59,7 @@ data Check
   }
         
 check :: Check -> IO ()
-check (Check program expected) = do
-  program <- either (error . T.unpack) pure $ compile "test" program
-  result <- readProcess "nodejs" [] (T.unpack program)
-  shouldBe result (expected <> "\n")
+check (Check prog expect) = do
+  prog' <- either (error . T.unpack) pure $ compile "test" prog
+  result <- readProcess "nodejs" [] (T.unpack prog')
+  shouldBe result (expect <> "\n")
