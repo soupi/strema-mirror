@@ -88,7 +88,7 @@ ppExpr = \case
       <> "." <> pretty label
 
   EEquals e1 e2 ->
-    ppExpr e1 <+> "==" <+> ppExpr e2
+    ppExpr e1 <+> "===" <+> ppExpr e2
 
   EBinOp op e1 e2 ->
     ppExpr e1 <+> pretty op <+> ppExpr e2
