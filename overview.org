@@ -84,3 +84,45 @@ should result in ~{ x = "hello", y = 0.0 }~.
 We want to be able to run some native JavaScript operations,
 We can use the ~EFfi~ constructor to generate normal javascript functions,
 But we need a new constructor for binary operations.
+*** Type inference
+Strema is statically typed, and has global type inference.
+Statically typed means any expression has a type, known before the program runs.
+Type inferred means we don't need to write type annotations.
+
+Our type inference algorithm works in stages:
+
+First, we *elaborate* the AST and collect *constraints*.
+Then, we solve these constraints and get back a *substitution*.
+We go over the AST again, replacing the type variables we added in the elaboration stage
+with concrete types.
+**** 1. Elaboration and Constraints Collection
+*Elaboration* means annotating the AST with types, if we can deduce the type
+from the tree structure, we annotate that AST node with the type we know.
+If we don't, we generate a new type variable name and annotate the tree with that.
+Usually in those cases that we don't know the type of the expression, we can sort of
+have a rough idea what it might be, for example: a ~EFunCall f args~ tells us that
+~f~ /should be/ a function.
+
+A *constraint* means some restriction about a type. Our most common constraint
+is going to be ~Equality~ - two types should represent the same type.
+
+After going over the AST, generating and assigning types for each node and collecting
+all of the constraints on those types, we *solve* the constraints.
+**** Constraints solving
+We go over the constraints and replace type variables with the types they represent
+according to the constraints, and check that the types match.
+
+For example, if we see ~Equality (TypeVar "t1") (TypeCon "Int")~, we can go over the
+rest of the constraints and replace ~t1~ with ~Int~.
+
+And if we see ~Equality (TypeCon "Int") (TypeCon "String")~, we throw a type error,
+because the two types do not match.
+
+We also collect all of these replacements (or substitutions) we did into a mapping
+from type variables to types. This mapping is called *a substitution*.
+**** Substitute
+After we've successfully created a substitution without generating an error, we apply
+this substitution back into our AST and get our correctly type annotated AST.
+
+
+

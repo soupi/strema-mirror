@@ -30,6 +30,7 @@ library
     Strema.Builtins
     Strema.Common
     Strema.Types.Types
+    Strema.Types.Infer
     Strema.Parser
     Strema.Rewrites
       Strema.Rewrites.RemoveAnn
@@ -77,6 +78,7 @@ test-suite strema-test
 
   other-modules:
     Tests.CompileSpec
+    Tests.InferSpec
     Tests.ParserSpec
     Tests.PrettySpec
     Tests.TranslateSpec
