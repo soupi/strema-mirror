@@ -24,6 +24,8 @@ spec :: Spec
 spec = do
   describe "infer" $ do
     lits
+    lambdas
+    funcalls
 
 lits :: Spec
 lits = do
@@ -42,6 +44,33 @@ lits = do
       shouldBe
         (testinfer "def x := 1.0")
         (pure $ boilerplate "x" tFloat $ ELit $ LFloat 1)
+
+lambdas :: Spec
+lambdas = do
+  describe "lambdas" $ do
+    it "assign id" $
+      shouldBe
+        (testinfer "def id := fun(x) -> x")
+        ( pure $ boilerplate "id"
+          ( TypeFun [TypeVar "t1"] (TypeVar "t1") )
+          ( EFun ["x"] [ SExpr ( EAnnotated (TypeVar "t1") $ EVar "x" ) ] )
+        )
+
+funcalls :: Spec
+funcalls = do
+  describe "funcalls" $ do
+    it "id 1" $
+      shouldBe
+        (testinfer "def one := (fun(x) -> x)(1)")
+        ( pure $ boilerplate "one" tInt $
+          EFunCall
+            ( EAnnotated ( TypeFun [tInt] tInt ) $
+              EFun ["x"] [ SExpr ( EAnnotated tInt $ EVar "x" ) ]
+            )
+            [ EAnnotated tInt $
+              ELit $ LInt 1
+            ]
+        )
 
 -------------------------
 

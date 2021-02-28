@@ -25,12 +25,15 @@ import qualified Strema.Parser as Parser
 
 import qualified Data.Map as M
 import qualified Data.Set as S
+import qualified Data.Generics.Uniplate.Data as U
 
 -- * Run
 
 infer :: File Ann -> Either TypeErrorA (File Type)
 infer file = do
   (elaborated, constraints) <- elaborate file
+  -- ltraceM "elaborated" elaborated
+  -- ltraceM "constraints" constraints
   sub <- solve constraints
   substitute sub elaborated
 
@@ -38,11 +41,13 @@ infer file = do
 
 type Ann = Parser.Ann
 
-type TypeErrorA = (Ann, TypeError)
+type TypeErrorA = ([Ann], TypeError)
 
 data TypeError
   = TypeMismatch Type Type
   | UnboundVar Var
+  | InfiniteType TypeVar Type
+  | ArityMismatch Type Type
   deriving Show
 
 type ConstraintA = (Ann, Constraint)
@@ -58,7 +63,7 @@ type Substitution
 
 -- * Utils
 
-throwErr :: MonadError TypeErrorA m => Ann -> TypeError -> m a
+throwErr :: MonadError TypeErrorA m => [Ann] -> TypeError -> m a
 throwErr ann err = throwError (ann, err)
 
 -- * Elaborate
@@ -88,9 +93,30 @@ lookupVar :: Elaborate m => Ann -> Var -> m Type
 lookupVar ann var = do
   env <- asks eeTypeEnv
   maybe
-    (throwErr ann $ UnboundVar var)
+    (throwErr [ann] $ UnboundVar var)
     pure
     (M.lookup var env)
+
+insertToEnv :: [(Var, TypeVar)] -> ElabEnv -> ElabEnv
+insertToEnv vars (ElabEnv env) =
+  ElabEnv $ M.union
+    (fmap TypeVar $ M.fromList $ vars)
+    env
+
+withEnv :: Elaborate m => [(Var, TypeVar)] -> m a -> m a
+withEnv = local . insertToEnv
+
+genTypeVar :: Elaborate m => Text -> m TypeVar
+genTypeVar prefix = do
+  n <- esTypeVarCounter <$> get
+  modify $ \s -> s { esTypeVarCounter = n + 1 }
+  pure $ prefix <> toText (show n)
+
+constrain :: Elaborate m => Ann -> Constraint -> m ()
+constrain ann constraint =
+  modify $ \s -> s { esConstraints = S.insert (ann, constraint) (esConstraints s) }
+
+noAnn expr = error $ toString $ "Found an expression with source position: " <> pShow expr
 
 -- ** Algorithm
 
@@ -123,12 +149,18 @@ elaborateTermDef :: Elaborate m => TermDef Ann -> m ElabTerm
 elaborateTermDef = \case
   Variable name expr -> do
     expr' <- elaborateExpr
-      (error $ toString $ "Found an expression with source position: " <> pShow expr)
+      (noAnn expr)
       expr
     pure $ ElabTerm
       { elabType = getType expr'
       , elabResult = Variable name expr'
       }
+
+elaborateSub :: Elaborate m => Sub Ann -> m (Type, Sub Type)
+elaborateSub = \case
+  [ SExpr expr ] -> do
+    expr' <- elaborateExpr (noAnn expr) expr
+    pure ( getType expr', [ SExpr  expr' ] )
 
 getType :: Expr Type -> Type
 getType = \case
@@ -146,6 +178,28 @@ elaborateExpr ann = \case
     typ <- lookupVar ann var
     pure $ EAnnotated typ $
       EVar var
+
+  EFun args sub -> do
+    tfun <- genTypeVar "t"
+    targsEnv <- traverse (\arg -> (,) arg <$> genTypeVar "t") args
+    (tret, sub') <- withEnv targsEnv $ elaborateSub sub
+
+    constrain ann $ Equality
+      (TypeVar tfun)
+      (TypeFun (map (TypeVar . snd) targsEnv) tret)
+
+    pure $ EAnnotated (TypeVar tfun) $
+      EFun args sub'
+
+  EFunCall f args -> do
+    f' <- elaborateExpr ann f
+    args' <- traverse (elaborateExpr ann) args
+    tret <- TypeVar <$> genTypeVar "t"
+    constrain ann $ Equality
+      (getType f')
+      (TypeFun (map getType args') tret)
+    pure $ EAnnotated tret $
+      EFunCall f' args'
 
 getLitType :: Lit -> Type
 getLitType = \case
@@ -175,9 +229,37 @@ solve =
 solveConstraints :: Solve m => Substitution -> [ConstraintA] -> m Substitution
 solveConstraints sub = \case
   [] -> pure sub
+  c : cs -> do
+    (newCons, newSub) <- solveConstraint c
+    cs' <- substitute newSub (newCons <> cs)
+    sub' <- substitute newSub sub
+    solveConstraints (M.union newSub sub') cs'
 
 solveConstraint :: Solve m => ConstraintA -> m ([ConstraintA], Substitution)
-solveConstraint = undefined
+solveConstraint (ann, constraint) =
+  -- case ltrace "constraint" constraint of
+  case constraint of
+    Equality t1 t2
+      | t1 == t2 ->
+        pure (mempty, mempty)
+
+    Equality (TypeVar tv) t2 ->
+      pure
+        ( mempty
+        , M.singleton tv t2
+        )
+
+    Equality t1 (TypeVar tv) ->
+      solveConstraint (ann, Equality (TypeVar tv) t1)
+
+    Equality t1@(TypeFun args1 ret1) t2@(TypeFun args2 ret2) -> do
+      unless (length args1 == length args2) $
+        throwErr [ann] $ ArityMismatch t1 t2
+
+      pure
+        ( map ((,) ann) $ zipWith Equality (ret1 : args1) (ret2 : args2)
+        , mempty
+        )
 
 --------------------------
 -- * Substitute
@@ -188,5 +270,38 @@ type Substitute m
   = ( MonadError TypeErrorA m
     )
 
-substitute :: Substitute m => Substitution -> File Type -> m (File Type)
-substitute _ = pure
+
+substitute
+  :: Substitute m
+  => Data f
+  => Substitution -> f -> m f
+substitute sub = U.transformBiM (replaceTypeVar sub)
+
+replaceTypeVar :: Substitute m => Substitution -> Type -> m Type
+replaceTypeVar sub = \case
+  TypeVar v ->
+    maybe
+      (pure $ TypeVar v)
+      (occursCheck v)
+      (M.lookup v sub)
+
+  other ->
+    pure other
+
+
+-- | protect against infinite types
+occursCheck :: Substitute m => TypeVar -> Type -> m Type
+occursCheck v = \case
+  TypeVar v'
+    | v == v' ->
+      pure $ TypeVar v'
+  -- types that contain the type variable we are trying to replace
+  -- are forbidden
+  t -> do
+    let
+      tvars = [ () | TypeVar tv <- U.universe t, tv == v ]
+    unless (null tvars) $ throwErr [] $ InfiniteType v t
+    pure t
+
+
+

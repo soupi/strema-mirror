@@ -1,3 +1,4 @@
+{-# language OverloadedStrings #-}
 
 module Utils
   ( module Utils
@@ -14,6 +15,16 @@ import Data.Map as Export (Map)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Text.Pretty.Simple as PS
+
+import Debug.Trace
+
+ltrace :: Show a => Text -> a -> a
+ltrace lbl x = trace (toString $ lbl <> ": " <> pShow x) x
+{-# warning ltrace "ltrace left in code" #-}
+
+ltraceM :: Applicative m => Show a => Text -> a -> m ()
+ltraceM lbl x = traceM (toString $ lbl <> ": " <> pShow x)
+{-# warning ltraceM "ltraceM left in code" #-}
 
 pShow :: Show a => a -> Text
 pShow = TL.toStrict . PS.pShow
