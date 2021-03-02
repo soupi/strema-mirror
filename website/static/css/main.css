@@ -1,0 +1,101 @@
+@font-face {
+  font-family: Iosevka;
+  src: url(../fonts/Iosevka_Fixed_Regular.ttf);
+}
+
+body {
+  	background-image: linear-gradient(rgb(30,25,35), rgb(30,35,50), #864450, #e66465);
+
+	font-weight: initial;
+	font-size: 1.1em;
+}
+
+.main-container {
+	margin: auto;
+	margin-top: 0px;
+	margin-bottom: 0px;
+	max-width: 1000px;
+	min-width: 500px;
+	padding: 2em;
+	font-family: sans-serif;
+	background-image: none;
+	background-color: white;
+}
+
+.side-by-side {
+	display: flex;
+	flex-wrap: wrap-reverse;
+}
+
+.main-header {
+	text-align: center;
+}
+
+pre {
+	font-family: Iosevka, sans-serif;
+    -moz-tab-size: 4; /* Firefox */
+    tab-size: 4;
+
+}
+
+.center {
+	text-align: center;
+}
+
+.example {
+	margin-left: auto;
+	margin-right: auto;
+	min-width: 300px;
+	max-width: 600px;
+}
+
+.example pre {
+	padding-right: 1em;
+	font-size: 1.15em;
+	overflow-x:scroll;
+
+}
+.features {
+	min-width: 350px;
+	margin-left: auto;
+	margin-right: auto;
+}
+.features p, .features li {
+	font-size: 1.1em;
+}
+.features ul {
+	list-style-type: none;
+	padding-left: 1em;
+}
+li {
+	margin-bottom: 0.5em;
+}
+p {
+	font-size: 1.1em;
+	padding-left: 1em;
+	padding-right: 1em;
+}
+
+// ---------------
+
+
+a:visited {
+  color: rgb(218, 77, 78);
+}
+
+a {
+  color: rgb(218, 77, 78);
+  text-decoration: underline;
+  font-weight: normal;
+}
+a:hover {
+  color: rgb(85, 25, 180);
+}
+
+h1 { font-size: 1.6em; color: rgb(64, 55, 107); }
+h2 { font-size: 1.5em; color: rgb(64, 55, 107); }
+h3 { font-size: 1.4em; color: rgb(64, 55, 107); }
+h4 { font-size: 1.3em; color: rgb(64, 55, 107); }
+h5 { font-size: 1.2em; color: rgb(64, 55, 107); }
+h6 { font-size: 1.1em; color: rgb(64, 55, 107); }
+

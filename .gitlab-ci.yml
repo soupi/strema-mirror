@@ -16,6 +16,7 @@ before_script:
   - wget -qO- https://get.haskellstack.org/ | sh
 
 stages:
+  - pages
   - build
   - test
 
@@ -28,4 +29,15 @@ unit-test:
   stage: test
   script:
     - stack test --no-terminal
+
+pages:
+  stage: pages
+  script:
+  - cp -r website public
+  artifacts:
+    paths:
+    - public
+    expire_in: 1 day
+  only:
+  - master
 

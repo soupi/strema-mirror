@@ -1,0 +1,25 @@
+// linked list data type and map operation
+
+def main() :=
+	ffi( "console.log", head(map(fun(x) -> add(x, 1), list)) )
+
+type List a =
+	| Nil {}
+	| Cons { head : a, tail : List a }
+end
+
+def list :=
+	Cons { head = 1, tail = Cons { head = 2, tail = Nil {} } }
+
+def head(list) :=
+	case list of
+		| Cons { head = head } ->
+			head
+	end
+
+def map(f, xs) :=
+	case xs of
+		| Nil {} -> Nil {}
+		| Cons { head = x, tail = rest } ->
+			Cons { head = f(x), tail = map(f, rest) }
+	end

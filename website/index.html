@@ -1,0 +1,143 @@
+<!DOCTYPE HTML><html><head><meta charset="utf-8"><title>Strema: a programming language built live on stream</title></head><body><link rel="stylesheet" type="text/css" href="static/css/main.css">
+
+<div class="main-container">
+<header class="main-header">
+	<a href="https://gitlab.com/gilmi/strema">
+	  <img src="static/images/logo.png" alt="Strema logo" title="Strema repository on GitLab">
+	</a>
+    <h1>Strema is a (WIP) hobby programming language built live on stream</h1>
+</header>
+
+<nav class="main-navigation">
+    <ul class="nav-links">
+	</ul>
+</nav>
+
+	<content class="main-content">
+	<div class="center">
+<iframe width="640" height="360" src="https://www.youtube-nocookie.com/embed/khAKcFgziWU" frameborder="0" allow="encrypted-media; picture-in-picture" allowfullscreen></iframe>
+</div>
+<div class="side-by-side">
+<div class="example">
+<h2>Example Code</h2>
+<div id="strema-code-example">
+<pre><code class="language-haskell">// linked list data type and map operation
+
+def main() :=
+	ffi( &quot;console.log&quot;, head(map(fun(x) -&gt; add(x, 1), list)) )
+
+type List a =
+	| Nil {}
+	| Cons { head : a, tail : List a }
+end
+
+def list :=
+	Cons { head = 1, tail = Cons { head = 2, tail = Nil {} } }
+
+def head(list) :=
+	case list of
+		| Cons { head = head } -&gt;
+			head
+	end
+
+def map(f, xs) :=
+	case xs of
+		| Nil {} -&gt; Nil {}
+		| Cons { head = x, tail = rest } -&gt;
+			Cons { head = f(x), tail = map(f, rest) }
+	end
+</code></pre>
+</div>
+<div id="js-code-example" style="display: none">
+<pre><code class="language-javascript">&quot;use strict&quot;;
+var main = function() {
+    return console.log
+    ( head
+    ( map
+    ( function(x) {
+        return (function(x, y) {     return x + y; })(x, 1);
+    }
+    , list ) ) );
+};
+var list = {&quot;_field&quot; : {&quot;head&quot; : 1
+, &quot;tail&quot; : {&quot;_field&quot; : {&quot;head&quot; : 2, &quot;tail&quot; : {&quot;_field&quot; : {}, &quot;_tag&quot; : &quot;Nil&quot;}}
+, &quot;_tag&quot; : &quot;Cons&quot;}}
+, &quot;_tag&quot; : &quot;Cons&quot;};
+var head = function(list) {
+    return (function(_case_0) {
+        if (&quot;Cons&quot; === _case_0._tag &amp;&amp; true) {
+            return (function(head) {     return head; })(_case_0._field.head);
+        }
+    })
+    (list);
+};
+var map = function(f, xs) {
+    return (function(_case_1) {
+        if (&quot;Nil&quot; === _case_1._tag) {
+            return (function() {
+                return {&quot;_field&quot; : {}, &quot;_tag&quot; : &quot;Nil&quot;};
+            })
+            ();
+        }
+        if (&quot;Cons&quot; === _case_1._tag &amp;&amp; true &amp;&amp; true) {
+            return (function(x, rest) {
+                return {&quot;_field&quot; : {&quot;head&quot; : f(x), &quot;tail&quot; : map(f, rest)}
+                , &quot;_tag&quot; : &quot;Cons&quot;};
+            })
+            (_case_1._field.head, _case_1._field.tail);
+        }
+    })
+    (xs);
+};
+main();
+</code></pre>
+</div>
+</div>
+<div class="features">
+<h2>Features</h2>
+<ul>
+<li>✓ First-class Functions</li>
+<li>✓ Algebraic Data Types</li>
+<li>✓ Pattern Matching</li>
+<li>✓ Extensible Records</li>
+<li>✓ Static Typing &amp; Type Inference</li>
+<li>✓ Written in Haskell</li>
+<li>✓ Targets JavaScript</li>
+</ul>
+</div>
+</div>
+<h2>More Information?</h2>
+<p>The main repository for Strema lives on <a href="https://gitlab.com/gilmi/strema">Gitlab.com/gilmi/strema</a>, though there's also a <a href="github.com/soupi/strema-mirror">Github mirror</a> for those who prefer to follow that instead.</p>
+<p>Note that the issues trackers are good places to ask questions, but pull/merge requests will not be accepted at this time.</p>
+<p>There's also an <a href="https://gitlab.com/gilmi/strema/overview.org">overview document</a> describing some less trivial features and how they're implemented.</p>
+<h2>Streaming? When and Where?</h2>
+<p>Live coding sessions are streamed <a href="https://twitch.tv/suppipi">on twitch</a> and are then
+uploaded <a href="https://www.youtube.com/watch?v=khAKcFgziWU&amp;list=PLhMOOgDOKD4L0SQ0wEvsHf5PBlIEjgbAc">to youtube</a>.</p>
+<p>I stream about two times a week, usually Sunday and Wednesday, on european mornings.
+My <a href="https://www.twitch.tv/suppipi/schedule">twitch schedule</a> contains the most up to date information.</p>
+<h2>Haskell?</h2>
+<p>Yeah! I think Haskell is really great and <a href="https://github.com/soupi/rfc/blob/master/compilers-and-haskell.md">a very good fit for writing compilers</a>.</p>
+<p>If you are interested in this project but aren't really familiar with Haskell, worry not! I've written a bunch of material hoping to help people get started with Haskell easily, including:</p>
+<ul>
+<li><a href="https://soupi.github.io/rfc/reading_simple_haskell/">Reading Simple Haskell</a></li>
+<li><a href="https://github.com/soupi/haskell-study-plan">Haskell study plan</a></li>
+<li><a href="https://github.com/soupi/learn-haskell-blog-generator">Learning Haskell by building a simple blog generator</a></li>
+</ul>
+<p>I've also compiled a list of resources on writing compilers for functional languages:</p>
+<ul>
+<li><a href="https://github.com/soupi/rfc/blob/master/fun-compilers.md">Fun compilers</a></li>
+</ul>
+<p>Do let me know if these tutorials helped you :)</p>
+<h2>Why?</h2>
+<p>Because it's fun!</p>
+<p>But also because I'd like to make Haskell and building compilers more approachable.</p>
+<h2>Who am I?</h2>
+<p>I'm Gil, also known as <a href="https://twitter.com/_gilmi">gilmi</a> or <a href="https://github.com/soupi">suppi</a>.
+I do a bunch of stuff with Haskell. <a href="https://gilmi.me">My website</a> has more information about me, my open source projects and tutorials :)</p>
+
+	</content>
+</div>
+
+<link rel="stylesheet" type="text/css" href="static/highlight/styles/arta.css">
+<script src="static/highlight/highlight.pack.js"></script>
+<script>hljs.initHighlightingOnLoad();</script></body></html>
