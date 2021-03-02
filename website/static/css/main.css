@@ -14,7 +14,7 @@ body {
 	margin: auto;
 	margin-top: 0px;
 	margin-bottom: 0px;
-	max-width: 1000px;
+	max-width: 960px;
 	min-width: 500px;
 	padding: 2em;
 	font-family: sans-serif;
@@ -57,6 +57,7 @@ pre {
 }
 .features {
 	min-width: 350px;
+	max-width: 380px;
 	margin-left: auto;
 	margin-right: auto;
 }
@@ -92,7 +93,7 @@ a:hover {
   color: rgb(85, 25, 180);
 }
 
-h1 { font-size: 1.6em; color: rgb(64, 55, 107); }
+h1 { font-size: 1.7em; color: rgb(64, 55, 107); }
 h2 { font-size: 1.5em; color: rgb(64, 55, 107); }
 h3 { font-size: 1.4em; color: rgb(64, 55, 107); }
 h4 { font-size: 1.3em; color: rgb(64, 55, 107); }

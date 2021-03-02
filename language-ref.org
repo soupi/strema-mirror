@@ -1,0 +1,167 @@
+* Strema
+This document describes the basic syntax and features of Strema.
+
+Note, it is /very/ terse at the moment, sorry about that.
+
+** Defintions
+A Strema source file is composed of definitions. We can define a value,
+a function or a type using the following forms:
+
+#+BEGIN_SRC haskell
+def <name> := <expression> // A value
+
+def <name>([<argument>, ...]) := <subroutine> // A function
+
+type <Typename> <type-arguments> = // A type
+    [ <type-variant> ]
+end
+#+END_SRC
+
+Note that:
+
+- <name>, <arguments> and <type arguments> must start with a lowercase letter, <Typename> must start with an uppercase letter
+- <arguments> are separated by commas
+- <type-arguments> are separated by spaces
+- <type-variants> start with ~|~, followed by a data tag (must start with an uppercase letter), and then followed by a single type.
+
+Examples:
+
+#+BEGIN_SRC haskell
+def hello := "hello world"
+
+def increment(n) := add(n, 1)
+
+type Option a =
+    | None {}
+    | Some a
+end
+#+END_SRC
+** Expressions
+An expression can be one of the following things:
+
+- A literal, either an integer, a floating point number, or a string
+
+For example:
+
+#+BEGIN_SRC haskell
+def one := 1
+def one_and_half := 1.5
+def name := "Gil"
+#+END_SRC
+
+- A variable, which must start with a lowercase letter
+
+For example:
+
+#+BEGIN_SRC haskell
+name
+#+END_SRC
+
+- An anonymous function of the form ~fun(<arguments>) -> <subroutine>~
+
+For example:
+
+#+BEGIN_SRC haskell
+def increment := fun(n) -> add(n, 1)
+#+END_SRC
+
+- A function application of the form ~<expression>([<expression>, ...])~
+
+For example:
+
+#+BEGIN_SRC haskell
+def two := increment(one)
+#+END_SRC
+
+- A variant expression of the form ~<data tag> <expression>~
+
+For example:
+
+#+BEGIN_SRC haskell
+def none := None {}
+#+END_SRC
+
+- A record expression of the form ~{ [<name> = <expression>, ...] }~
+
+For example:
+
+#+BEGIN_SRC haskell
+def desc := { name = "Strema", year = 2021 }
+#+END_SRC
+
+- A record access of the form ~<expression>.<label>~
+
+For example:
+
+#+BEGIN_SRC haskell
+def stremaYear := desc.year
+#+END_SRC
+
+- A record extension of the form ~{ [<name> = <expression>, ...] | <expression> }~
+
+For example:
+
+#+BEGIN_SRC haskell
+def descWithCreator := { author = "Gil" | desc }
+#+END_SRC
+
+- A foreign function interface call of the form ~ffi(<js-function-name>, [arguments, ...])~
+
+For example:
+
+#+BEGIN_SRC haskell
+def print(x) := ffi("console.log", x)
+#+END_SRC
+
+- A case expression of the form ~case <expression> of [ | <pattern> -> <expression> ] end~
+
+
+For example:
+
+#+BEGIN_SRC haskell
+def greet(person) :=
+    case person.name of
+	    | "Gil" -> "Hi Gil!"
+		| name -> concat("Hello, ", name)
+	end
+#+END_SRC
+
+*** Patterns
+Case expressions match the expression between the ~case~ and ~of~ keywords with each of the patterns
+in order, when a match succeeds, the expression to the right of that pattern is returned.
+
+Patterns can be one of the following:
+
+- A wildcard which matches any expression, denoted ~_~
+- A variable name which matches any expression and is bound in the scope of the expression to the right of the arrow with the matched expression
+- A literal value
+- A variant of patterns
+- A record of patterns
+** Subroutines
+Functions' body is a made of one or more statements separated by newlines
+which start with the keyword ~do~ and end with the keyword ~end~.
+
+Each statement is either an expression or a defintion (barring type definitions).
+The last statement which will be the return value of the function.
+
+For example:
+
+#+BEGIN_SRC haskell
+def cube(n) := do
+    let squared := mul(n, n)
+	mul(squared, n)
+end
+#+END_SRC
+
+The ~do~ and ~end~ keywords are not required when the subroutine contains just a single expression.
+
+#+BEGIN_SRC haskell
+def cube(n) := mul(mul(n, n), n)
+#+END_SRC
+** Types
+A type can be one of:
+
+- Type name, beginning with an uppercase letter, for example ~Int~
+- A type variable, beginning with a lowercase letter, for example ~a~
+- An application of types, separated by space, for example ~Option Int~
+- A record of types of the form ~{ [ <label> : <type>, ... ] }~, for example ~{ name : String, year : Int }~
