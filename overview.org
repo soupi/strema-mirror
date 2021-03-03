@@ -4,7 +4,7 @@
 Variants are data constructors with some data attached to them.
 
 They tag the data so it can be distinguished from different variants
-int the data definition.
+in the data definition.
 
 For example in Haskell:
 
@@ -14,7 +14,8 @@ data Definition
   | Function Var [Var] Sub
 #+END_SRC
 
-Here we define a new data type named ~Definition~ which has two possible representations, either a ~Variable~ with two specific types attached to it, or a ~Function~ with three.
+Here we define a new data type named ~Definition~ which has two possible representations,
+either a ~Variable~ with two specific types attached to it, or a ~Function~ with three.
 
 In Strema variants must have exactly one type attached to them.
 
@@ -26,12 +27,13 @@ We will compile variants to javascript using objects. A variants schema is going
 
 We prefix with underscore to avoid name collisions with records.
 
-When we pattern match on variants we will check the tag to see if we're looking at the right variant, and then check its field.
+When we pattern match on variants we will check the tag to see if we're looking at the right variant,
+and then check its field.
 
 *** Pattern matching
-Pattern matching are a way to implement control flow.
+Pattern matching is a way to implement control flow.
 
-We examine the shape of a type and decide what to do accordingly.
+We examine the shape of a value and decide what to do accordingly.
 
 In Haskell it looks like this:
 
@@ -45,7 +47,7 @@ case mydef of
 
 Pattern matching can be represented using:
 
-1. An expression which we will match on
+1. An expression on which we will match on
 2. A list of patterns and their respected result
 
 A pattern can be one of the following:
@@ -53,10 +55,11 @@ A pattern can be one of the following:
 - A wildcard, denoted as underscore, will succeed for any expression and will not bind anything in the scope of the result
 - A variable, will succeed for any expression and will bind the data in place to that variable in the result
 - A literal, will succeed if the expression in the same place is a literal of the same value
-- A variant, which will succeed if the matched data is of the same constructor and the pattern it holds matches as well
+- A variant, which will succeed if the matched data is of the same tag and the pattern it holds matches as well
 - A record, which will succeed if the matched data is a record which has all of the fields in the pattern and they match.
 
-We will compile pattern matching into several if statements that if succeeds will enter a function with the matched variables and return from there.
+We will compile pattern matching into several if statements that if succeeds will call a function
+with the matched variables and return from there.
 
 We will also need to generate fresh variables for the variables we match on.
 *** Records

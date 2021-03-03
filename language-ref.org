@@ -3,7 +3,7 @@ This document describes the basic syntax and features of Strema.
 
 Note, it is /very/ terse at the moment, sorry about that.
 
-** Defintions
+** Definitions
 A Strema source file is composed of definitions. We can define a value,
 a function or a type using the following forms:
 
@@ -141,8 +141,8 @@ Patterns can be one of the following:
 Functions' body is a made of one or more statements separated by newlines
 which start with the keyword ~do~ and end with the keyword ~end~.
 
-Each statement is either an expression or a defintion (barring type definitions).
-The last statement which will be the return value of the function.
+Each statement is either an expression or a definition (barring type definitions).
+The last statement will be the return value of the function.
 
 For example:
 
@@ -163,5 +163,6 @@ A type can be one of:
 
 - Type name, beginning with an uppercase letter, for example ~Int~
 - A type variable, beginning with a lowercase letter, for example ~a~
+- A type function of the form ~[<types>, ...] -> <type>~ such as ~[a, b] -> a~
 - An application of types, separated by space, for example ~Option Int~
 - A record of types of the form ~{ [ <label> : <type>, ... ] }~, for example ~{ name : String, year : Int }~
