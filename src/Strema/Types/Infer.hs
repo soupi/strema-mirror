@@ -111,6 +111,13 @@ type Elaborate m
     , MonadError TypeErrorA m
     )
 
+data ElabInfo a
+  = ElabInfo
+    { eiResult :: a
+    , eiType :: Type
+    , eiNewEnv :: Env Typer
+    }
+
 -- ** Utils
 
 lookupVar :: Elaborate m => Ann -> Var -> m Typer
@@ -176,12 +183,6 @@ elaborateFile (File defs) = do
   vars <- traverse (\name -> (,) name . Instance <$> genTypeVar "t") names
   File <$> withEnv vars (traverse elaborateDef defs)
 
-data ElabTerm
-  = ElabTerm
-    { elabType :: Type
-    , elabResult :: TermDef Type
-    }
-
 elaborateDef :: Elaborate m => Definition Ann -> m (Definition Type)
 elaborateDef = \case
   TermDef ann def -> do
@@ -191,20 +192,21 @@ elaborateDef = \case
     elab <- withEnv [(name, Concrete $ TypeVar t)] $ elaborateTermDef ann def
     lookupVarMaybe name >>= \case
       Just (Instance t') ->
-        constrain ann $ InstanceOf (TypeVar t') (elabType elab)
+        constrain ann $ InstanceOf (TypeVar t') (eiType elab)
       _ ->
         pure ()
-    pure $ TermDef (elabType elab) (elabResult elab)
+    pure $ TermDef (eiType elab) (eiResult elab)
 
-elaborateTermDef :: Elaborate m => Ann -> TermDef Ann -> m ElabTerm
+elaborateTermDef :: Elaborate m => Ann -> TermDef Ann -> m (ElabInfo (TermDef Type))
 elaborateTermDef ann = \case
   Variable name expr -> do
     expr' <- elaborateExpr
       (noAnn expr)
       expr
-    pure $ ElabTerm
-      { elabType = getType expr'
-      , elabResult = Variable name expr'
+    pure $ ElabInfo
+      { eiType = getType expr'
+      , eiResult = Variable name expr'
+      , eiNewEnv = mempty
       }
   Function name args sub -> do
     tfun <- genTypeVar "t"
@@ -217,9 +219,10 @@ elaborateTermDef ann = \case
       (TypeVar tfun)
       (TypeFun (map (TypeVar . snd) targsEnv) tret)
 
-    pure $ ElabTerm
-      { elabType = TypeVar tfun
-      , elabResult = Function name args sub'
+    pure $ ElabInfo
+      { eiType = TypeVar tfun
+      , eiResult = Function name args sub'
+      , eiNewEnv = mempty
       }
 
 
@@ -241,13 +244,6 @@ elaborateSub sub = do
 -- we want to fold over the list of statements, and for each new definition,
 -- add it to the environment for the elaboration of the next expressions
 
-data ElabInfo a
-  = ElabInfo
-    { eiResult :: a
-    , eiType :: Type
-    , eiNewEnv :: Env Typer
-    }
-
 elaborateStmt :: Elaborate m => Statement Ann -> m (ElabInfo (Statement Type))
 elaborateStmt = \case
   SExpr expr -> do
@@ -259,7 +255,7 @@ elaborateStmt = \case
       }
 
   SDef ann def -> do
-    ElabTerm t def' <- elaborateTermDef ann def
+    ElabInfo def' t _ <- elaborateTermDef ann def
     t' <- genTypeVar "t"
     constrain ann $ InstanceOf (TypeVar t') t
     pure $ ElabInfo
