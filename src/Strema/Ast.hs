@@ -38,7 +38,7 @@ data Datatype
 
 data Statement a
   = SExpr (Expr a)
-  | SDef (TermDef a)
+  | SDef a (TermDef a)
   deriving (Show, Eq, Ord, Data, Functor, Foldable, Traversable)
 
 data Expr a

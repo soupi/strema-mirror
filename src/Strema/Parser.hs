@@ -158,6 +158,7 @@ reservedWords = (<>) JS.reservedWords
   [ "def"
   , "do"
   , "end"
+  , "fun"
   , "case"
   , "of"
   , "ffi"
@@ -277,9 +278,10 @@ parseSub =
     ]
 
 parseStmt :: Parser (Statement Ann)
-parseStmt =
+parseStmt = do
+  ann <- getAnn
   P.choice
-    [ SDef <$> parseTermDef <?> "a definition"
+    [ SDef ann <$> parseTermDef <?> "a definition"
     , SExpr <$> parseExpr <?> "an expression"
     ]
 

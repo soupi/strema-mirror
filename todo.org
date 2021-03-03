@@ -1,0 +1,18 @@
+* Strema
+** Parser
+*** TODO Good error message on reserved words usage
+** Type inference
+*** DONE Multiple statements support
+*** DONE Let polymorphism
+*** NOW Function definitions support
+- check usage:
+
+#+BEGIN_SRC haskell
+def myfun(x) := do
+	def id(y) := y
+	myfun(id(x)) -- I think that's not a bug actually
+end
+#+END_SRC
+*** TODO Builtins
+*** TODO Data types
+*** TODO Extensible records

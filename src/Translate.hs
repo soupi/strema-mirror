@@ -99,7 +99,7 @@ translateStmt :: Translate m => Statement Ann -> m JS.Statement
 translateStmt = \case
   SExpr expr ->
     JS.SExpr <$> translateExpr expr
-  SDef def ->
+  SDef _ def ->
     JS.SDef <$> translateDef def
 
 translateExpr :: Translate m => Expr Ann -> m JS.Expr

@@ -7,7 +7,10 @@ module Utils
   where
 
 import Data.Bifunctor as Export
+import Data.Maybe as Export
 import Data.Functor as Export
+import Data.Foldable as Export
+import Data.Traversable as Export
 import Data.Data as Export (Data)
 import Data.Text as Export (Text)
 import Data.Set as Export (Set)

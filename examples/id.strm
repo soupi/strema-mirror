@@ -1,0 +1,5 @@
+def id := fun(x) -> x
+
+def one := id(1)
+
+def hello := id("hello")

@@ -320,7 +320,7 @@ end
                         , ("tail", PVar "rest")
                         ]
                       )
-                    , [ SDef $ Variable "res"
+                    , [ SDef () $ Variable "res"
                         ( EFunCall ( EVar "add" )
                           [ ELit ( LInt 1 )
                           , EFunCall ( EVar "length" ) [ EVar "rest" ]

@@ -50,10 +50,11 @@ data TypeError
   | ArityMismatch Type Type
   deriving Show
 
-type ConstraintA = (Ann, Constraint)
+type ConstraintA = (Constraint, Ann)
 
 data Constraint
   = Equality Type Type
+  | InstanceOf Type Type
   deriving (Show, Eq, Ord, Data)
 
 type Constraints = Set ConstraintA
@@ -61,14 +62,37 @@ type Constraints = Set ConstraintA
 type Substitution
   = Map TypeVar Type
 
+data Typer
+  = Concrete Type
+  | Instance TypeVar
+  deriving (Show, Eq, Ord, Data)
+
 -- * Utils
 
 throwErr :: MonadError TypeErrorA m => [Ann] -> TypeError -> m a
 throwErr ann err = throwError (ann, err)
 
+getTermName :: TermDef a -> Var
+getTermName = \case
+  Variable name _ -> name
+  Function name _ _ -> name
+
+getTermDef :: Definition a -> Maybe (TermDef a)
+getTermDef = \case
+  TermDef _ def -> Just def
+  TypeDef{} -> Nothing
+
+getTypeDef :: Definition a -> Maybe Datatype
+getTypeDef = \case
+  TermDef{} -> Nothing
+  TypeDef def -> Just def
+
+
 -- * Elaborate
 
 -- ** Types
+
+type Env a = Map Var a
 
 data ElabState
   = ElabState
@@ -78,7 +102,7 @@ data ElabState
 
 data ElabEnv
   = ElabEnv
-    { eeTypeEnv :: Map Var Type
+    { eeTypeEnv :: Env Typer
     }
 
 type Elaborate m
@@ -89,7 +113,7 @@ type Elaborate m
 
 -- ** Utils
 
-lookupVar :: Elaborate m => Ann -> Var -> m Type
+lookupVar :: Elaborate m => Ann -> Var -> m Typer
 lookupVar ann var = do
   env <- asks eeTypeEnv
   maybe
@@ -97,16 +121,31 @@ lookupVar ann var = do
     pure
     (M.lookup var env)
 
-insertToEnv :: [(Var, TypeVar)] -> ElabEnv -> ElabEnv
+lookupVarMaybe :: Elaborate m => Var -> m (Maybe Typer)
+lookupVarMaybe var = do
+  env <- asks eeTypeEnv
+  pure (M.lookup var env)
+
+insertToEnv :: Env Typer -> ElabEnv -> ElabEnv
 insertToEnv vars (ElabEnv env) =
   ElabEnv $ M.union
-    (fmap TypeVar $ M.fromList $ vars)
+    vars
     env
 
-withEnv :: Elaborate m => [(Var, TypeVar)] -> m a -> m a
-withEnv = local . insertToEnv
+removeFromEnv :: [Var] -> ElabEnv -> ElabEnv
+removeFromEnv vars (ElabEnv env) =
+  ElabEnv $ foldr M.delete env vars
 
-genTypeVar :: Elaborate m => Text -> m TypeVar
+withEnv :: Elaborate m => [(Var, Typer)] -> m a -> m a
+withEnv = local . insertToEnv . M.fromList
+
+withEnv' :: Elaborate m => Env Typer -> m a -> m a
+withEnv' = local . insertToEnv
+
+withoutEnv :: Elaborate m => [Var] -> m a -> m a
+withoutEnv = local . removeFromEnv
+
+genTypeVar :: MonadState ElabState m => Text -> m TypeVar
 genTypeVar prefix = do
   n <- esTypeVarCounter <$> get
   modify $ \s -> s { esTypeVarCounter = n + 1 }
@@ -114,7 +153,7 @@ genTypeVar prefix = do
 
 constrain :: Elaborate m => Ann -> Constraint -> m ()
 constrain ann constraint =
-  modify $ \s -> s { esConstraints = S.insert (ann, constraint) (esConstraints s) }
+  modify $ \s -> s { esConstraints = S.insert (constraint, ann) (esConstraints s) }
 
 noAnn expr = error $ toString $ "Found an expression with source position: " <> pShow expr
 
@@ -130,8 +169,12 @@ elaborate =
   )
 
 elaborateFile :: Elaborate m => File Ann -> m (File Type)
-elaborateFile (File defs) =
-  File <$> traverse elaborateDef defs
+elaborateFile (File defs) = do
+  let
+    termDefs = mapMaybe getTermDef defs
+    names = map getTermName termDefs
+  vars <- traverse (\name -> (,) name . Instance <$> genTypeVar "t") names
+  File <$> withEnv vars (traverse elaborateDef defs)
 
 data ElabTerm
   = ElabTerm
@@ -141,12 +184,20 @@ data ElabTerm
 
 elaborateDef :: Elaborate m => Definition Ann -> m (Definition Type)
 elaborateDef = \case
-  TermDef _ def -> do
-    elab <- elaborateTermDef def
+  TermDef ann def -> do
+    -- we need to change the type of def in the current environment for recursive functions
+    let name = getTermName def
+    t <- genTypeVar name
+    elab <- withEnv [(name, Concrete $ TypeVar t)] $ elaborateTermDef ann def
+    lookupVarMaybe name >>= \case
+      Just (Instance t') ->
+        constrain ann $ InstanceOf (TypeVar t') (elabType elab)
+      _ ->
+        pure ()
     pure $ TermDef (elabType elab) (elabResult elab)
 
-elaborateTermDef :: Elaborate m => TermDef Ann -> m ElabTerm
-elaborateTermDef = \case
+elaborateTermDef :: Elaborate m => Ann -> TermDef Ann -> m ElabTerm
+elaborateTermDef ann = \case
   Variable name expr -> do
     expr' <- elaborateExpr
       (noAnn expr)
@@ -155,16 +206,74 @@ elaborateTermDef = \case
       { elabType = getType expr'
       , elabResult = Variable name expr'
       }
+  Function name args sub -> do
+    tfun <- genTypeVar "t"
+    targsEnv <- traverse (\arg -> (,) arg <$> genTypeVar "t") args
+    (tret, sub') <- withEnv
+      ((name, Concrete $ TypeVar tfun) : fmap (fmap (Concrete . TypeVar)) targsEnv)
+      (elaborateSub sub)
+
+    constrain ann $ Equality
+      (TypeVar tfun)
+      (TypeFun (map (TypeVar . snd) targsEnv) tret)
+
+    pure $ ElabTerm
+      { elabType = TypeVar tfun
+      , elabResult = Function name args sub'
+      }
+
 
 elaborateSub :: Elaborate m => Sub Ann -> m (Type, Sub Type)
-elaborateSub = \case
-  [ SExpr expr ] -> do
+elaborateSub sub = do
+  sub' <- foldM
+    ( \subinfo stmt -> do
+      stmt' <- withEnv' (eiNewEnv subinfo) $ elaborateStmt stmt
+      pure $ ElabInfo
+        { eiResult = eiResult stmt' : eiResult subinfo
+        , eiType = eiType stmt'
+        , eiNewEnv = M.union (eiNewEnv stmt') (eiNewEnv subinfo)
+        }
+    )
+    (ElabInfo [] tUnit mempty)
+    sub
+  pure (eiType sub', reverse (eiResult sub'))
+
+-- we want to fold over the list of statements, and for each new definition,
+-- add it to the environment for the elaboration of the next expressions
+
+data ElabInfo a
+  = ElabInfo
+    { eiResult :: a
+    , eiType :: Type
+    , eiNewEnv :: Env Typer
+    }
+
+elaborateStmt :: Elaborate m => Statement Ann -> m (ElabInfo (Statement Type))
+elaborateStmt = \case
+  SExpr expr -> do
     expr' <- elaborateExpr (noAnn expr) expr
-    pure ( getType expr', [ SExpr  expr' ] )
+    pure $ ElabInfo
+      { eiResult = SExpr expr'
+      , eiType = getType expr'
+      , eiNewEnv = mempty
+      }
+
+  SDef ann def -> do
+    ElabTerm t def' <- elaborateTermDef ann def
+    t' <- genTypeVar "t"
+    constrain ann $ InstanceOf (TypeVar t') t
+    pure $ ElabInfo
+      { eiResult = SDef t def'
+      , eiType = t
+      , eiNewEnv = M.singleton (getTermName def') (Instance t')
+      }
+
+getExprAnn :: Expr a -> a
+getExprAnn = \case
+  EAnnotated typ _ -> typ
 
 getType :: Expr Type -> Type
-getType = \case
-  EAnnotated typ _ -> typ
+getType = getExprAnn
 
 elaborateExpr :: Elaborate m => Ann -> Expr Ann -> m (Expr Type)
 elaborateExpr ann = \case
@@ -175,14 +284,21 @@ elaborateExpr ann = \case
     pure $ EAnnotated (getLitType lit) (ELit lit)
 
   EVar var -> do
-    typ <- lookupVar ann var
+    typer <- lookupVar ann var
+    typ <- case typer of
+      Concrete t -> pure t
+      Instance t -> do
+        tv <- genTypeVar "t"
+        constrain ann $ InstanceOf (TypeVar tv) (TypeVar t)
+        pure $ TypeVar tv
+
     pure $ EAnnotated typ $
       EVar var
 
   EFun args sub -> do
     tfun <- genTypeVar "t"
     targsEnv <- traverse (\arg -> (,) arg <$> genTypeVar "t") args
-    (tret, sub') <- withEnv targsEnv $ elaborateSub sub
+    (tret, sub') <- withEnv (fmap (fmap (Concrete . TypeVar)) targsEnv) $ elaborateSub sub
 
     constrain ann $ Equality
       (TypeVar tfun)
@@ -215,6 +331,7 @@ getLitType = \case
 
 type Solve m
   = ( MonadError TypeErrorA m
+    , MonadState ElabState m
     )
 
 -- ** Algorithm
@@ -222,6 +339,7 @@ type Solve m
 solve :: Constraints -> Either TypeErrorA Substitution
 solve =
   ( runExcept
+  . flip evalStateT (ElabState 0 mempty)
   . solveConstraints mempty
   . S.toList
   )
@@ -236,9 +354,13 @@ solveConstraints sub = \case
     solveConstraints (M.union newSub sub') cs'
 
 solveConstraint :: Solve m => ConstraintA -> m ([ConstraintA], Substitution)
-solveConstraint (ann, constraint) =
+solveConstraint (constraint, ann) =
   -- case ltrace "constraint" constraint of
   case constraint of
+    InstanceOf t1 t2 -> do
+      t2' <- instantiate t2
+      pure ([(Equality t1 t2', ann)], mempty)
+
     Equality t1 t2
       | t1 == t2 ->
         pure (mempty, mempty)
@@ -250,16 +372,36 @@ solveConstraint (ann, constraint) =
         )
 
     Equality t1 (TypeVar tv) ->
-      solveConstraint (ann, Equality (TypeVar tv) t1)
+      solveConstraint (Equality (TypeVar tv) t1, ann)
 
     Equality t1@(TypeFun args1 ret1) t2@(TypeFun args2 ret2) -> do
       unless (length args1 == length args2) $
         throwErr [ann] $ ArityMismatch t1 t2
 
       pure
-        ( map ((,) ann) $ zipWith Equality (ret1 : args1) (ret2 : args2)
+        ( map (flip (,) ann) $ zipWith Equality (ret1 : args1) (ret2 : args2)
         , mempty
         )
+
+    Equality t1 t2 ->
+      throwErr [ann] $ TypeMismatch t1 t2
+
+
+instantiate :: Solve m => Type -> m Type
+instantiate typ = do
+  -- collect all type variables, generate a new type variable for each one
+  -- replace old type variables with new ones
+  env <- fmap M.fromList $ sequence
+    [ (,) tv <$> genTypeVar "ti"
+    | TypeVar tv <- U.universe typ
+    ]
+  pure $ flip U.transform typ $ \case
+    TypeVar tv
+      | Just tv' <- M.lookup tv env ->
+        TypeVar tv'
+    other -> other
+
+
 
 --------------------------
 -- * Substitute

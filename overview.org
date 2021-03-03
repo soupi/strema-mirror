@@ -129,3 +129,30 @@ this substitution back into our AST and get our correctly type annotated AST.
 
 
 
+**** Let Polymorphism
+Let polymorphism gives us the ability to use a generic function in more contexts.
+
+For example, ~id~ is a function that can work for ~x~ of any type. But our algorithm
+collects constraints globally, including that:
+
+#+BEGIN_SRC haskell
+def id := fun(x) -> x
+
+def one := id(1)          -- constrain that the type of id *is equal to* the type [Int] -> tN
+
+def hello := id("hello")  -- constrain that the type of id *is equal to* the type [String] -> tM
+#+END_SRC
+
+We need to invent a new constraint that will define the relationship between the type of id
+and the parameters passing to it as an *Instance of* relationship.
+
+~InstanceOf t1 t2~ relationship means that ~t1~ is an *instantiation* of ~t2~.
+What we'll do is copy the type of ~t2~, generate new type variables in place of all type variables
+inside of it, and then say that this new type ~t3~ has an equality relationship with ~t1~.
+
+It's important to solve the equality constraints for each function before solving the InstanceOf
+constraints, so that when we instantiate we already have the final type of the function.
+
+We will highjack the ~Ord~ instance deriving (constructors defined later are bigger)
+and the fact that ~Set~ is ordered to accomplish that.
+

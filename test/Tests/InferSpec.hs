@@ -52,8 +52,8 @@ lambdas = do
       shouldBe
         (testinfer "def id := fun(x) -> x")
         ( pure $ boilerplate "id"
-          ( TypeFun [TypeVar "t1"] (TypeVar "t1") )
-          ( EFun ["x"] [ SExpr ( EAnnotated (TypeVar "t1") $ EVar "x" ) ] )
+          ( TypeFun [TypeVar "t3"] (TypeVar "t3") )
+          ( EFun ["x"] [ SExpr ( EAnnotated (TypeVar "t3") $ EVar "x" ) ] )
         )
 
 funcalls :: Spec
