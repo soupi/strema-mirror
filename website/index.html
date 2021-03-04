@@ -19,7 +19,21 @@
 </div>
 <div class="side-by-side">
 <div class="example">
-<h2>Example Code</h2>
+<script>
+var hideStrema = function() {
+    document.getElementById("strema-code-example").style.display = "none";
+    document.getElementById("js-code-example").style.display = "block";
+};
+var hideJs = function() {
+    document.getElementById("js-code-example").style.display = "none";
+    document.getElementById("strema-code-example").style.display = "block";
+};
+</script>
+<h2>
+Example Code
+<button onclick="hideJs()">Strema</button>
+<button onclick="hideStrema()">JavaScript</button>
+</h2>
 <div id="strema-code-example">
 <pre><code class="language-haskell">// linked list data type and map operation
 
@@ -51,43 +65,57 @@ def map(f, xs) :=
 <div id="js-code-example" style="display: none">
 <pre><code class="language-javascript">&quot;use strict&quot;;
 var main = function() {
-    return console.log
-    ( head
-    ( map
-    ( function(x) {
-        return (function(x, y) {     return x + y; })(x, 1);
-    }
-    , list ) ) );
+    return
+         console.log
+        ( head
+          ( map
+            ( function(x) {
+                  return (function(x, y) { return x + y; })(x, 1);
+              }
+            , list
+            )
+          )
+        );
 };
-var list = {&quot;_field&quot; : {&quot;head&quot; : 1
-, &quot;tail&quot; : {&quot;_field&quot; : {&quot;head&quot; : 2, &quot;tail&quot; : {&quot;_field&quot; : {}, &quot;_tag&quot; : &quot;Nil&quot;}}
-, &quot;_tag&quot; : &quot;Cons&quot;}}
-, &quot;_tag&quot; : &quot;Cons&quot;};
+var list = { &quot;_field&quot; : { &quot;head&quot; : 1
+                        , &quot;tail&quot; : { &quot;_field&quot; : { &quot;head&quot; : 2
+                                                , &quot;tail&quot; : { &quot;_field&quot; : {}
+                                                           , &quot;_tag&quot; : &quot;Nil&quot;
+                                                           }
+                                                }
+                                   , &quot;_tag&quot; : &quot;Cons&quot;
+                                   }
+                        }
+           , &quot;_tag&quot; : &quot;Cons&quot;
+           };
 var head = function(list) {
-    return (function(_case_0) {
-        if (&quot;Cons&quot; === _case_0._tag &amp;&amp; true) {
-            return (function(head) {     return head; })(_case_0._field.head);
-        }
-    })
-    (list);
+    return
+         (function(_case_0) {
+            if (&quot;Cons&quot; === _case_0._tag &amp;&amp; true) {
+                return (function(head) { return head; })(_case_0._field.head);
+            }
+        })
+        (list);
 };
 var map = function(f, xs) {
-    return (function(_case_1) {
-        if (&quot;Nil&quot; === _case_1._tag) {
-            return (function() {
-                return {&quot;_field&quot; : {}, &quot;_tag&quot; : &quot;Nil&quot;};
-            })
-            ();
-        }
-        if (&quot;Cons&quot; === _case_1._tag &amp;&amp; true &amp;&amp; true) {
-            return (function(x, rest) {
-                return {&quot;_field&quot; : {&quot;head&quot; : f(x), &quot;tail&quot; : map(f, rest)}
-                , &quot;_tag&quot; : &quot;Cons&quot;};
-            })
-            (_case_1._field.head, _case_1._field.tail);
-        }
-    })
-    (xs);
+    return
+         (function(_case_1) {
+            if (&quot;Nil&quot; === _case_1._tag) {
+                return
+                     (function() { return {&quot;_field&quot; : {}, &quot;_tag&quot; : &quot;Nil&quot;}; })();
+            }
+            if (&quot;Cons&quot; === _case_1._tag &amp;&amp; true &amp;&amp; true) {
+                return
+                     (function(x, rest) {
+                        return
+                             { &quot;_field&quot; : {&quot;head&quot; : f(x), &quot;tail&quot; : map(f, rest)}
+                             , &quot;_tag&quot; : &quot;Cons&quot;
+                             };
+                    })
+                    (_case_1._field.head, _case_1._field.tail);
+            }
+        })
+        (xs);
 };
 main();
 </code></pre>
