@@ -45,7 +45,7 @@ ppStmt = \case
   SExpr expr ->
     ppExpr expr <> ";"
   SRet expr ->
-    "return" <+> ppExpr expr <> ";"
+    nest 4 (group $ flatAlt ("return" <> hardline) "return" <+> ppExpr expr) <> ";"
   SDef def ->
     ppDef def <> ";"
   SIf cond sub ->
@@ -65,12 +65,7 @@ ppDef = \case
   Variable var e ->
     "var" <+> pretty var <+> "=" <+> ppExpr e
   Function name args body ->
-    "var" <+> pretty name <+> "=" <+>
-      vsep
-        [ "function" <> tupled (map pretty args) <+> "{"
-        , indent 4 $ ppSub body
-        , "}"
-        ]
+    group ("var" <+> pretty name <+> "=") <+> ppExpr (EFun args body)
 
 ppExpr :: Expr -> Doc a
 ppExpr = \case
@@ -84,7 +79,7 @@ ppExpr = \case
     ppRecord ppExpr record
 
   ERecordAccess expr label ->
-    (if isSimple expr then id else parens) (ppExpr expr)
+    (if isSimple expr then id else align . parens) (ppExpr expr)
       <> "." <> pretty label
 
   EEquals e1 e2 ->
@@ -94,19 +89,19 @@ ppExpr = \case
     ppExpr e1 <+> pretty op <+> ppExpr e2
 
   EAnd exprs ->
-    encloseSep "" "" " && " (map ppExpr exprs)
+    group $ encloseSep "" "" " && " (map ppExpr exprs)
 
   EFun args body ->
     vsep
-      [ "function" <> tupled (map pretty args) <+> "{"
-      , indent 4 $ ppSub body
+      [ "function" <> tupled' (map pretty args) <+> "{"
+      , flatAlt (indent 4 $ ppSub body) (ppSub body)
       , "}"
       ]
 
   EFunCall fun args ->
-    cat
+    group $ cat
       [ (if isSimple fun then id else parens) (ppExpr fun)
-      , tupled (map ppExpr args)
+      , tupled' (map ppExpr args)
       ]
 
   ERaw rawString ->
@@ -114,7 +109,7 @@ ppExpr = \case
 
 ppRecord :: (a -> Doc ann) -> Record a -> Doc ann
 ppRecord ppf record =
-  encloseSep "{" "}" ", " $
+  record' $
     map
       (\(k, v) -> pretty (show k) <+> ":" <+> ppf v)
       (M.toList record)
@@ -140,3 +135,20 @@ isSimple = \case
   EBinOp{} -> False
   ERaw{} -> False
   ERecordAccess{} -> True
+
+
+------------
+-- * Helpers
+
+record' :: [Doc ann] -> Doc ann
+record' = encloseSep' "{" "}" ", "
+
+tupled' :: [Doc ann] -> Doc ann
+tupled' = encloseSep' "(" ")" ", "
+
+encloseSep' :: Doc ann -> Doc ann -> Doc ann -> [Doc ann] -> Doc ann
+encloseSep' open close seperator =
+  align . group . encloseSep
+    (flatAlt (open <> " ") open)
+    (flatAlt (hardline <> close) close)
+    seperator . map align
