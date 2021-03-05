@@ -44,7 +44,7 @@ exprs = do
     it "lambda function call" $ do
       shouldBe
         (ppExpr' $ EFunCall (EFun ["x","y"] [SRet (EVar "x")]) [ELit $ LInt 1, ELit $ LInt 2])
-        "(function(x, y) {     return x; })(1, 2)"
+        "(function(x, y) { return x; })(1, 2)"
 
 
 -- literals --

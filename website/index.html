@@ -65,8 +65,7 @@ def map(f, xs) :=
 <div id="js-code-example" style="display: none">
 <pre><code class="language-javascript">&quot;use strict&quot;;
 var main = function() {
-    return
-         console.log
+    return console.log
         ( head
           ( map
             ( function(x) {
@@ -89,8 +88,7 @@ var list = { &quot;_field&quot; : { &quot;head&quot; : 1
            , &quot;_tag&quot; : &quot;Cons&quot;
            };
 var head = function(list) {
-    return
-         (function(_case_0) {
+    return (function(_case_0) {
             if (&quot;Cons&quot; === _case_0._tag &amp;&amp; true) {
                 return (function(head) { return head; })(_case_0._field.head);
             }
@@ -98,19 +96,20 @@ var head = function(list) {
         (list);
 };
 var map = function(f, xs) {
-    return
-         (function(_case_1) {
+    return (function(_case_1) {
             if (&quot;Nil&quot; === _case_1._tag) {
-                return
-                     (function() { return {&quot;_field&quot; : {}, &quot;_tag&quot; : &quot;Nil&quot;}; })();
+                return (function() {
+                        return {&quot;_field&quot; : {}, &quot;_tag&quot; : &quot;Nil&quot;};
+                    })
+                    ();
             }
             if (&quot;Cons&quot; === _case_1._tag &amp;&amp; true &amp;&amp; true) {
-                return
-                     (function(x, rest) {
-                        return
-                             { &quot;_field&quot; : {&quot;head&quot; : f(x), &quot;tail&quot; : map(f, rest)}
-                             , &quot;_tag&quot; : &quot;Cons&quot;
-                             };
+                return (function(x, rest) {
+                        return { &quot;_field&quot; : { &quot;head&quot; : f(x)
+                                            , &quot;tail&quot; : map(f, rest)
+                                            }
+                               , &quot;_tag&quot; : &quot;Cons&quot;
+                               };
                     })
                     (_case_1._field.head, _case_1._field.tail);
             }

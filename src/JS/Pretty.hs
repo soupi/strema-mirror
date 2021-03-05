@@ -45,7 +45,7 @@ ppStmt = \case
   SExpr expr ->
     ppExpr expr <> ";"
   SRet expr ->
-    nest 4 (group $ flatAlt ("return" <> hardline) "return" <+> ppExpr expr) <> ";"
+    nest 4 (group $ "return" <+> ppExpr expr) <> ";"
   SDef def ->
     ppDef def <> ";"
   SIf cond sub ->
