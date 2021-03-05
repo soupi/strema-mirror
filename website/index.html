@@ -76,20 +76,20 @@ var main = function() {
           )
         );
 };
-var list = { &quot;_field&quot; : { &quot;head&quot; : 1
-                        , &quot;tail&quot; : { &quot;_field&quot; : { &quot;head&quot; : 2
-                                                , &quot;tail&quot; : { &quot;_field&quot; : {}
-                                                           , &quot;_tag&quot; : &quot;Nil&quot;
+var list = { &quot;_constr&quot; : &quot;Cons&quot;
+           , &quot;_field&quot; : { &quot;head&quot; : 1
+                        , &quot;tail&quot; : { &quot;_constr&quot; : &quot;Cons&quot;
+                                   , &quot;_field&quot; : { &quot;head&quot; : 2
+                                                , &quot;tail&quot; : { &quot;_constr&quot; : &quot;Nil&quot;
+                                                           , &quot;_field&quot; : {}
                                                            }
                                                 }
-                                   , &quot;_tag&quot; : &quot;Cons&quot;
                                    }
                         }
-           , &quot;_tag&quot; : &quot;Cons&quot;
            };
 var head = function(list) {
     return (function(_case_0) {
-            if (&quot;Cons&quot; === _case_0._tag &amp;&amp; true) {
+            if (&quot;Cons&quot; === _case_0._constr &amp;&amp; true) {
                 return (function(head) { return head; })(_case_0._field.head);
             }
         })
@@ -97,18 +97,18 @@ var head = function(list) {
 };
 var map = function(f, xs) {
     return (function(_case_1) {
-            if (&quot;Nil&quot; === _case_1._tag) {
+            if (&quot;Nil&quot; === _case_1._constr) {
                 return (function() {
-                        return {&quot;_field&quot; : {}, &quot;_tag&quot; : &quot;Nil&quot;};
+                        return {&quot;_constr&quot; : &quot;Nil&quot;, &quot;_field&quot; : {}};
                     })
                     ();
             }
-            if (&quot;Cons&quot; === _case_1._tag &amp;&amp; true &amp;&amp; true) {
+            if (&quot;Cons&quot; === _case_1._constr &amp;&amp; true &amp;&amp; true) {
                 return (function(x, rest) {
-                        return { &quot;_field&quot; : { &quot;head&quot; : f(x)
+                        return { &quot;_constr&quot; : &quot;Cons&quot;
+                               , &quot;_field&quot; : { &quot;head&quot; : f(x)
                                             , &quot;tail&quot; : map(f, rest)
                                             }
-                               , &quot;_tag&quot; : &quot;Cons&quot;
                                };
                     })
                     (_case_1._field.head, _case_1._field.tail);

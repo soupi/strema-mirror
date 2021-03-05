@@ -22,7 +22,7 @@ In Strema variants must have exactly one type attached to them.
 We will compile variants to javascript using objects. A variants schema is going to be:
 
 #+BEGIN_SRC haskell
-{ _tag: <String>, _field: <Expr> }
+{ _constr: <String>, _field: <Expr> }
 #+END_SRC
 
 We prefix with underscore to avoid name collisions with records.

@@ -140,7 +140,7 @@ translateExpr = \case
   EVariant (Variant tag dat) -> do
     dat' <- translateExpr dat
     pure $ JS.ERecord $ M.fromList
-      [ ("_tag", JS.ELit $ JS.LString tag)
+      [ ("_constr", JS.ELit $ JS.LString tag)
       , ("_field", dat')
       ]
   ERecord record ->
@@ -227,7 +227,7 @@ translatePattern expr = \case
       { conditions =
         ( JS.EEquals
           (JS.ELit $ JS.LString tag)
-          (JS.ERecordAccess expr "_tag")
+          (JS.ERecordAccess expr "_constr")
         ) : conditions pat'
       , matchers = matchers pat'
       }

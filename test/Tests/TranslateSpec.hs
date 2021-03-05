@@ -43,7 +43,7 @@ simples = do
         ( boilerplate $
           EVariant $ Variant "Nil" (ERecord mempty)
         )
-        "{ _field: {}, _tag: 'Nil' }"
+        "{ _constr: 'Nil', _field: {} }"
 
     it "function application" $ do
       check
