@@ -27,6 +27,7 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Generics.Uniplate.Data as U
 
+---------------
 -- * Run
 
 -- | Infer the types for all expressions in a source file
@@ -38,6 +39,7 @@ infer file = do
   sub <- solve constraints
   substitute sub elaborated
 
+---------------
 -- * Types
 
 -- | The annotation of the input
@@ -60,24 +62,33 @@ data TypeError
   | ArityMismatch Type Type
   deriving Show
 
-type ConstraintA = (Constraint, InputAnn)
-
+-- | Represents the constraints on types we collect during the elaboration phase.
 data Constraint
+  -- | The two type should be equal.
   = Equality Type Type
+  -- | The first type is an instantiation of the second (see @instantiate@).
   | InstanceOf Type Type
   deriving (Show, Eq, Ord, Data)
 
+-- | A constraint with the input annotation.
+type ConstraintA = (Constraint, InputAnn)
+
 type Constraints = Set ConstraintA
 
+-- | A mapping from type variable to types. This is the output of the constraint solving phase. 
 type Substitution
   = Map TypeVar Type
 
+-- | Used during elaboration to represent the type of names in scope.
 data Typer
+  -- | This type is a concrete type.
   = Concrete Type
+  -- | This type represents an instantiation of this type.
   | Instance TypeVar
   deriving (Show, Eq, Ord, Data)
 
--- * Utils
+------------------
+-- * General Utils
 
 throwErr :: MonadError TypeErrorA m => [InputAnn] -> TypeError -> m a
 throwErr ann err = throwError (ann, err)
@@ -97,39 +108,77 @@ getTypeDef = \case
   TermDef{} -> Nothing
   TypeDef def -> Just def
 
+-- | Retrieve the annotation of an expression. Will explode when used on a non @EAnnotated@ node.
+getExprAnn :: Expr a -> a
+getExprAnn = \case
+  EAnnotated typ _ -> typ
 
--- * Elaborate
+-- | Retrieve the type of an expression. Will explode when used on a non @EAnnotated@ node.
+getType :: Expr Ann -> Type
+getType = annType . getExprAnn
 
+-----------------------------------------------
+{- * (1) Elaborate
+
+During the elaboration phase we annotate the AST with the types
+we know. When we don't know what the type of something is, we generate
+a new type variable as a placeholder and mark that type with a @Constraint@
+depending on its syntactic use.
+
+- Input: AST
+- Output: Annotated AST with types (to the best of our abilities) + constraints on those types
+
+-}
+
+elaborate :: File InputAnn -> Either TypeErrorA (File Ann, Constraints)
+elaborate = runElaborate
+
+------------
 -- ** Types
 
 type Env a = Map Var a
 
+-- | The state we keep during elaboration.
 data ElabState
   = ElabState
+    -- | Used to generate unique type variable names.
     { esTypeVarCounter :: Int
+    -- | The constraints we collect.
     , esConstraints :: Constraints
     }
 
+-- | The environment we use.
 data ElabEnv
   = ElabEnv
+    -- | Represents the variables in scope and their types (including if they are let-polymorphic or not).
     { eeTypeEnv :: Env Typer
     }
 
+-- | The monadic capabilities for the elaboration phase.
 type Elaborate m
   = ( MonadState ElabState m
     , MonadReader ElabEnv m
     , MonadError TypeErrorA m
     )
 
+-- | Return type for some elaboration functions.
 data ElabInfo a
   = ElabInfo
-    { eiResult :: a
-    , eiType :: Type
-    , eiNewEnv :: Env Typer
+    { eiResult :: a -- ^ The result of the current elaboration
+    , eiType :: Type -- ^ The type of the result
+    , eiNewEnv :: Env Typer -- ^ A definition to add to the environment for the next statements, if needed.
     }
 
+-------------
 -- ** Utils
 
+-- | Try to find the type of a variable in scope.
+lookupVarMaybe :: Elaborate m => Var -> m (Maybe Typer)
+lookupVarMaybe var = do
+  env <- asks eeTypeEnv
+  pure (M.lookup var env)
+
+-- | Same as @lookupVarMaybe@ but throws an @UnboundVar@ error on failure.
 lookupVar :: Elaborate m => InputAnn -> Var -> m Typer
 lookupVar ann var = do
   env <- asks eeTypeEnv
@@ -138,46 +187,52 @@ lookupVar ann var = do
     pure
     (M.lookup var env)
 
-lookupVarMaybe :: Elaborate m => Var -> m (Maybe Typer)
-lookupVarMaybe var = do
-  env <- asks eeTypeEnv
-  pure (M.lookup var env)
-
+-- | Adding new variable into the scope
 insertToEnv :: Env Typer -> ElabEnv -> ElabEnv
 insertToEnv vars (ElabEnv env) =
   ElabEnv $ M.union
     vars
     env
 
+-- | Remove variables from the scope
 removeFromEnv :: [Var] -> ElabEnv -> ElabEnv
 removeFromEnv vars (ElabEnv env) =
   ElabEnv $ foldr M.delete env vars
 
+-- | Run an elaboration function with extra variables in scope.
 withEnv :: Elaborate m => [(Var, Typer)] -> m a -> m a
 withEnv = local . insertToEnv . M.fromList
 
+-- | Run an elaboration function with extra variables in scope (Map version).
 withEnv' :: Elaborate m => Env Typer -> m a -> m a
 withEnv' = local . insertToEnv
 
+-- | Run an elaboration function without some variables in scope.
 withoutEnv :: Elaborate m => [Var] -> m a -> m a
 withoutEnv = local . removeFromEnv
 
+-- | Generate a new type variable.
 genTypeVar :: MonadState ElabState m => Text -> m TypeVar
 genTypeVar prefix = do
   n <- esTypeVarCounter <$> get
   modify $ \s -> s { esTypeVarCounter = n + 1 }
   pure $ prefix <> toText (show n)
 
+-- | Add a new constraint.
 constrain :: Elaborate m => InputAnn -> Constraint -> m ()
 constrain ann constraint =
   modify $ \s -> s { esConstraints = S.insert (constraint, ann) (esConstraints s) }
 
+-- | An @InputAnn@ that will explode if evaluated. Use with care.
+noAnn :: Show a1 => a1 -> InputAnn
 noAnn expr = error $ toString $ "Found an expression with source position: " <> pShow expr
 
+------------------
 -- ** Algorithm
 
-elaborate :: File InputAnn -> Either TypeErrorA (File Ann, Constraints)
-elaborate =
+-- | Run the algorithm.
+runElaborate :: File InputAnn -> Either TypeErrorA (File Ann, Constraints)
+runElaborate =
   ( fmap (fmap esConstraints)
   . runExcept
   . flip runStateT (ElabState 0 mempty)
@@ -185,34 +240,40 @@ elaborate =
   . elaborateFile
   )
 
+-- | Elaborate a source file
 elaborateFile :: Elaborate m => File InputAnn -> m (File Ann)
 elaborateFile (File defs) = do
   let
     termDefs = mapMaybe getTermDef defs
     names = map getTermName termDefs
+  -- We invent types for top level term definitions.
+  -- These should be let polymorphic so we use @Instance@ instead of @Concrete@
   vars <- traverse (\name -> (,) name . Instance <$> genTypeVar "t") names
   File <$> withEnv vars (traverse elaborateDef defs)
 
+-- | Elaborate a @TermDef@ or @TypeDef@
 elaborateDef :: Elaborate m => Definition InputAnn -> m (Definition Ann)
 elaborateDef = \case
   TermDef ann def -> do
     -- we need to change the type of def in the current environment for recursive functions
     let name = getTermName def
     t <- genTypeVar name
+    -- When evaluating a definition, the type should not be let polymorphic.
     elab <- withEnv [(name, Concrete $ TypeVar t)] $ elaborateTermDef ann def
-    lookupVarMaybe name >>= \case
-      Just (Instance t') ->
+    lookupVar ann name >>= \case
+      Instance t' ->
+        -- @t'@ is the type other definitions see.
+        -- It is an instantiation of the type we just elaborated for def.
         constrain ann $ InstanceOf (TypeVar t') (eiType elab)
       _ ->
         pure ()
     pure $ TermDef (Ann ann $ eiType elab) (eiResult elab)
 
+-- | Elaborate a term definition
 elaborateTermDef :: Elaborate m => InputAnn -> TermDef InputAnn -> m (ElabInfo (TermDef Ann))
 elaborateTermDef ann = \case
   Variable name expr -> do
-    expr' <- elaborateExpr
-      (noAnn expr)
-      expr
+    expr' <- elaborateExpr (noAnn expr) expr
     pure $ ElabInfo
       { eiType = getType expr'
       , eiResult = Variable name expr'
@@ -235,9 +296,12 @@ elaborateTermDef ann = \case
       , eiNewEnv = mempty
       }
 
-
+-- | Elaborate a list of statements.
+--   Returns the type of the final statement as well.
 elaborateSub :: Elaborate m => Sub InputAnn -> m (Type, Sub Ann)
 elaborateSub sub = do
+  -- we want to fold over the list of statements, and for each new definition,
+  -- add it to the environment for the elaboration of the next expressions
   sub' <- foldM
     ( \subinfo stmt -> do
       stmt' <- withEnv' (eiNewEnv subinfo) $ elaborateStmt stmt
@@ -251,9 +315,7 @@ elaborateSub sub = do
     sub
   pure (eiType sub', reverse (eiResult sub'))
 
--- we want to fold over the list of statements, and for each new definition,
--- add it to the environment for the elaboration of the next expressions
-
+-- | Elaborate a single statement.
 elaborateStmt :: Elaborate m => Statement InputAnn -> m (ElabInfo (Statement Ann))
 elaborateStmt = \case
   SExpr expr -> do
@@ -274,25 +336,24 @@ elaborateStmt = \case
       , eiNewEnv = M.singleton (getTermName def') (Instance t')
       }
 
-getExprAnn :: Expr a -> a
-getExprAnn = \case
-  EAnnotated typ _ -> typ
-
-getType :: Expr Ann -> Type
-getType = annType . getExprAnn
-
+-- | Elaborate an expression.
+--   Traverses the expression Top-Down.
 elaborateExpr :: Elaborate m => InputAnn -> Expr InputAnn -> m (Expr Ann)
 elaborateExpr ann = \case
+  -- Replace the current annotation an evaluate the inner expression
   EAnnotated ann' e ->
     elaborateExpr ann' e
 
+  -- The types of literals are known.
   ELit lit ->
     pure $ EAnnotated (Ann ann $ getLitType lit) (ELit lit)
 
+  -- For variables, we look it up in the environment
   EVar var -> do
     typer <- lookupVar ann var
     typ <- case typer of
       Concrete t -> pure t
+      -- For let-polymorphism
       Instance t -> do
         tv <- genTypeVar "t"
         constrain ann $ InstanceOf (TypeVar tv) (TypeVar t)
@@ -301,18 +362,20 @@ elaborateExpr ann = \case
     pure $ EAnnotated (Ann ann typ) $
       EVar var
 
-  EFun args sub -> do
-    tfun <- genTypeVar "t"
+  -- Generate type variables for function arguments, and annotate
+  -- the body with the arguments in the environment.
+  -- The result type should be a function from the arguments types to the type of the body
+  EFun args body -> do
     targsEnv <- traverse (\arg -> (,) arg <$> genTypeVar "t") args
-    (tret, sub') <- withEnv (fmap (fmap (Concrete . TypeVar)) targsEnv) $ elaborateSub sub
+    (tret, body') <- withEnv (fmap (fmap (Concrete . TypeVar)) targsEnv) $ elaborateSub body
 
-    constrain ann $ Equality
-      (TypeVar tfun)
-      (TypeFun (map (TypeVar . snd) targsEnv) tret)
+    let tfun = TypeFun (map (TypeVar . snd) targsEnv) tret
 
-    pure $ EAnnotated (Ann ann $ TypeVar tfun) $
-      EFun args sub'
+    pure $ EAnnotated (Ann ann tfun) $
+      EFun args body'
 
+  -- Generate a return type and constrain the type of the function as
+  -- a function from the arguments types to the generated return type
   EFunCall f args -> do
     f' <- elaborateExpr ann f
     args' <- traverse (elaborateExpr ann) args
@@ -323,6 +386,7 @@ elaborateExpr ann = \case
     pure $ EAnnotated (Ann ann tret) $
       EFunCall f' args'
 
+-- | The type of a literal
 getLitType :: Lit -> Type
 getLitType = \case
   LInt{} -> tInt
