@@ -2,8 +2,8 @@
 
 Our type inference algorithm works in stages:
 
-First, we *elaborate* the AST and collect *constraints*.
-Then, we solve these constraints and get back a *substitution*.
+First, we __elaborate__ the AST and collect __constraints__.
+Then, we solve these constraints and get back a __substitution__.
 We go over the AST again, replacing the type variables we added in the elaboration stage
 with concrete types.
 
@@ -118,7 +118,9 @@ getType :: Expr Ann -> Type
 getType = annType . getExprAnn
 
 -----------------------------------------------
-{- * (1) Elaborate
+-- * Elaborate
+
+{- |
 
 During the elaboration phase we annotate the AST with the types
 we know. When we don't know what the type of something is, we generate
@@ -141,17 +143,17 @@ type Env a = Map Var a
 -- | The state we keep during elaboration.
 data ElabState
   = ElabState
-    -- | Used to generate unique type variable names.
     { esTypeVarCounter :: Int
-    -- | The constraints we collect.
+    -- ^ Used to generate unique type variable names.
     , esConstraints :: Constraints
+    -- ^ The constraints we collect.
     }
 
 -- | The environment we use.
 data ElabEnv
   = ElabEnv
-    -- | Represents the variables in scope and their types (including if they are let-polymorphic or not).
     { eeTypeEnv :: Env Typer
+    -- ^ Represents the variables in scope and their types (including if they are let-polymorphic or not).
     }
 
 -- | The monadic capabilities for the elaboration phase.
@@ -164,9 +166,12 @@ type Elaborate m
 -- | Return type for some elaboration functions.
 data ElabInfo a
   = ElabInfo
-    { eiResult :: a -- ^ The result of the current elaboration
-    , eiType :: Type -- ^ The type of the result
-    , eiNewEnv :: Env Typer -- ^ A definition to add to the environment for the next statements, if needed.
+    { eiResult :: a
+      -- ^ The result of the current elaboration
+    , eiType :: Type
+      -- ^ The type of the result
+    , eiNewEnv :: Env Typer
+      -- ^ A definition to add to the environment for the next statements, if needed.
     }
 
 -------------
@@ -393,48 +398,76 @@ getLitType = \case
   LString{} -> tString
   LFloat{} -> tFloat
 
---------------------------
+----------------------------------------
 
 -- * Solve constraints
 
+{- |
+In this phase we go over the constraints one by one and try to __unify__ them.
+
+For example, if we see @Equality (TypeVar "t1") (TypeCon "Int")@, we create
+a mapping from @t1@ to @Int@ (called a __substitution__) and
+we go over the rest of the constraints and replace @t1@ with @Int@ (__apply the substitution__).
+
+We also keep all the substitutions we created from the constraints (and merge them to one substitution
+but applying new substitution to the accumulated substitution).
+
+If we see ~Equality (TypeCon "Int") (TypeCon "String")~, we throw a type error,
+because the two types do not match.
+
+We keep going until there are no more constraints or until we encountered an error.
+
+The result of the algorithm is the accumulated substitution.
+
+-}
+solve :: Constraints -> Either TypeErrorA Substitution
+solve = runSolve
+
 -- ** Types
 
+-- | Monadic capabilities for the Solve algorithm
 type Solve m
   = ( MonadError TypeErrorA m
-    , MonadState ElabState m
+    , MonadState ElabState m -- We highjack the ElabState type for the genTypeVar function.
     )
 
 -- ** Algorithm
 
-solve :: Constraints -> Either TypeErrorA Substitution
-solve =
+runSolve :: Constraints -> Either TypeErrorA Substitution
+runSolve =
   ( runExcept
   . flip evalStateT (ElabState 0 mempty)
   . solveConstraints mempty
   . S.toList
   )
 
+-- | Recursively the constraints in order, passing the accumulated substitution.
 solveConstraints :: Solve m => Substitution -> [ConstraintA] -> m Substitution
 solveConstraints sub = \case
   [] -> pure sub
   c : cs -> do
     (newCons, newSub) <- solveConstraint c
-    cs' <- substitute newSub (newCons <> cs)
-    sub' <- substitute newSub sub
+    cs' <- substitute newSub (newCons <> cs) -- apply the new substitution on the rest of the constraints
+    sub' <- substitute newSub sub -- apply the new substitution to the accumulative substitution
     solveConstraints (M.union newSub sub') cs'
 
+-- | Solve a constraint.
+--   Returns new constraints that may arise from this constraint and a substitution
 solveConstraint :: Solve m => ConstraintA -> m ([ConstraintA], Substitution)
 solveConstraint (constraint, ann) =
   -- case ltrace "constraint" constraint of
   case constraint of
+    -- For let polymorphism. Instantiate a type.
     InstanceOf t1 t2 -> do
       t2' <- instantiate t2
       pure ([(Equality t1 t2', ann)], mempty)
 
+    -- When the two types are equals, there's nothing to do.
     Equality t1 t2
       | t1 == t2 ->
         pure (mempty, mempty)
 
+    -- Map a type variable to the other type
     Equality (TypeVar tv) t2 ->
       pure
         ( mempty
@@ -444,6 +477,7 @@ solveConstraint (constraint, ann) =
     Equality t1 (TypeVar tv) ->
       solveConstraint (Equality (TypeVar tv) t1, ann)
 
+    -- Match the arguments and the return types
     Equality t1@(TypeFun args1 ret1) t2@(TypeFun args2 ret2) -> do
       unless (length args1 == length args2) $
         throwErr [ann] $ ArityMismatch t1 t2
@@ -453,10 +487,12 @@ solveConstraint (constraint, ann) =
         , mempty
         )
 
+    -- When all else fails, throw an error.
     Equality t1 t2 ->
       throwErr [ann] $ TypeMismatch t1 t2
 
-
+-- | Create an instance of a type.
+--   (The type serves as a template for specialized types)
 instantiate :: Solve m => Type -> m Type
 instantiate typ = do
   -- collect all type variables, generate a new type variable for each one
@@ -476,13 +512,19 @@ instantiate typ = do
 --------------------------
 -- * Substitute
 
+{- |
+
+Apply a substitution
+
+-}
+
 -- ** Types
 
 type Substitute m
   = ( MonadError TypeErrorA m
     )
 
-
+-- | Replaces all type variables for any data type that has an instance of Data using uniplate magic
 substitute
   :: Substitute m
   => Data f
@@ -494,7 +536,7 @@ replaceTypeVar sub = \case
   TypeVar v ->
     maybe
       (pure $ TypeVar v)
-      (occursCheck v)
+      (occursCheck v) -- Maybe sure we don't have an infinite type
       (M.lookup v sub)
 
   other ->
