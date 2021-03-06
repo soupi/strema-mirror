@@ -79,4 +79,4 @@ boilerplate name typ expr =
   File [TermDef typ $ Variable name $ EAnnotated typ expr]
 
 testinfer :: T.Text -> Either T.Text (File Type)
-testinfer = inferPipeline "test"
+testinfer = fmap (fmap annType) . inferPipeline "test"

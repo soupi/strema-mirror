@@ -54,7 +54,7 @@ run = do
 testInfer :: T.Text -> IO ()
 testInfer = either T.putStrLn (T.putStrLn . pShow) . inferPipeline "test"
 
-inferPipeline :: FilePath -> T.Text -> Either T.Text (Strema.File Strema.Type)
+inferPipeline :: FilePath -> T.Text -> Either T.Text (Strema.File Infer.Ann)
 inferPipeline path src = do
   parsed <- first pShow $ Parser.runParser Parser.parseFile path src
   inferred <- first pShow $ Infer.infer parsed

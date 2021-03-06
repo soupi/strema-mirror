@@ -6,6 +6,10 @@ build:
 ghci:
 	stack ghci --ghci-options "-interactive-print=Text.Pretty.Simple.pPrint" --package pretty-simple
 
+.PHONY: test
+test:
+	stack test --fast
+
 .PHONY: test-parser
 test-parser:
 	stack test --fast --test-arguments="--match parser"

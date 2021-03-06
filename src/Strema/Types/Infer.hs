@@ -29,7 +29,8 @@ import qualified Data.Generics.Uniplate.Data as U
 
 -- * Run
 
-infer :: File Ann -> Either TypeErrorA (File Type)
+-- | Infer the types for all expressions in a source file
+infer :: File InputAnn -> Either TypeErrorA (File Ann)
 infer file = do
   (elaborated, constraints) <- elaborate file
   -- ltraceM "elaborated" elaborated
@@ -39,9 +40,18 @@ infer file = do
 
 -- * Types
 
-type Ann = Parser.Ann
+-- | The annotation of the input
+type InputAnn = Parser.Ann
 
-type TypeErrorA = ([Ann], TypeError)
+-- | The annotation of the output: the input + the type
+data Ann
+  = Ann
+    { annInput :: InputAnn
+    , annType :: Type
+    }
+  deriving (Show, Eq, Ord, Data)
+
+type TypeErrorA = ([InputAnn], TypeError)
 
 data TypeError
   = TypeMismatch Type Type
@@ -50,7 +60,7 @@ data TypeError
   | ArityMismatch Type Type
   deriving Show
 
-type ConstraintA = (Constraint, Ann)
+type ConstraintA = (Constraint, InputAnn)
 
 data Constraint
   = Equality Type Type
@@ -69,7 +79,7 @@ data Typer
 
 -- * Utils
 
-throwErr :: MonadError TypeErrorA m => [Ann] -> TypeError -> m a
+throwErr :: MonadError TypeErrorA m => [InputAnn] -> TypeError -> m a
 throwErr ann err = throwError (ann, err)
 
 getTermName :: TermDef a -> Var
@@ -120,7 +130,7 @@ data ElabInfo a
 
 -- ** Utils
 
-lookupVar :: Elaborate m => Ann -> Var -> m Typer
+lookupVar :: Elaborate m => InputAnn -> Var -> m Typer
 lookupVar ann var = do
   env <- asks eeTypeEnv
   maybe
@@ -158,7 +168,7 @@ genTypeVar prefix = do
   modify $ \s -> s { esTypeVarCounter = n + 1 }
   pure $ prefix <> toText (show n)
 
-constrain :: Elaborate m => Ann -> Constraint -> m ()
+constrain :: Elaborate m => InputAnn -> Constraint -> m ()
 constrain ann constraint =
   modify $ \s -> s { esConstraints = S.insert (constraint, ann) (esConstraints s) }
 
@@ -166,7 +176,7 @@ noAnn expr = error $ toString $ "Found an expression with source position: " <> 
 
 -- ** Algorithm
 
-elaborate :: File Ann -> Either TypeErrorA (File Type, Constraints)
+elaborate :: File InputAnn -> Either TypeErrorA (File Ann, Constraints)
 elaborate =
   ( fmap (fmap esConstraints)
   . runExcept
@@ -175,7 +185,7 @@ elaborate =
   . elaborateFile
   )
 
-elaborateFile :: Elaborate m => File Ann -> m (File Type)
+elaborateFile :: Elaborate m => File InputAnn -> m (File Ann)
 elaborateFile (File defs) = do
   let
     termDefs = mapMaybe getTermDef defs
@@ -183,7 +193,7 @@ elaborateFile (File defs) = do
   vars <- traverse (\name -> (,) name . Instance <$> genTypeVar "t") names
   File <$> withEnv vars (traverse elaborateDef defs)
 
-elaborateDef :: Elaborate m => Definition Ann -> m (Definition Type)
+elaborateDef :: Elaborate m => Definition InputAnn -> m (Definition Ann)
 elaborateDef = \case
   TermDef ann def -> do
     -- we need to change the type of def in the current environment for recursive functions
@@ -195,9 +205,9 @@ elaborateDef = \case
         constrain ann $ InstanceOf (TypeVar t') (eiType elab)
       _ ->
         pure ()
-    pure $ TermDef (eiType elab) (eiResult elab)
+    pure $ TermDef (Ann ann $ eiType elab) (eiResult elab)
 
-elaborateTermDef :: Elaborate m => Ann -> TermDef Ann -> m (ElabInfo (TermDef Type))
+elaborateTermDef :: Elaborate m => InputAnn -> TermDef InputAnn -> m (ElabInfo (TermDef Ann))
 elaborateTermDef ann = \case
   Variable name expr -> do
     expr' <- elaborateExpr
@@ -226,7 +236,7 @@ elaborateTermDef ann = \case
       }
 
 
-elaborateSub :: Elaborate m => Sub Ann -> m (Type, Sub Type)
+elaborateSub :: Elaborate m => Sub InputAnn -> m (Type, Sub Ann)
 elaborateSub sub = do
   sub' <- foldM
     ( \subinfo stmt -> do
@@ -244,7 +254,7 @@ elaborateSub sub = do
 -- we want to fold over the list of statements, and for each new definition,
 -- add it to the environment for the elaboration of the next expressions
 
-elaborateStmt :: Elaborate m => Statement Ann -> m (ElabInfo (Statement Type))
+elaborateStmt :: Elaborate m => Statement InputAnn -> m (ElabInfo (Statement Ann))
 elaborateStmt = \case
   SExpr expr -> do
     expr' <- elaborateExpr (noAnn expr) expr
@@ -259,7 +269,7 @@ elaborateStmt = \case
     t' <- genTypeVar "t"
     constrain ann $ InstanceOf (TypeVar t') t
     pure $ ElabInfo
-      { eiResult = SDef t def'
+      { eiResult = SDef (Ann ann t) def'
       , eiType = t
       , eiNewEnv = M.singleton (getTermName def') (Instance t')
       }
@@ -268,16 +278,16 @@ getExprAnn :: Expr a -> a
 getExprAnn = \case
   EAnnotated typ _ -> typ
 
-getType :: Expr Type -> Type
-getType = getExprAnn
+getType :: Expr Ann -> Type
+getType = annType . getExprAnn
 
-elaborateExpr :: Elaborate m => Ann -> Expr Ann -> m (Expr Type)
+elaborateExpr :: Elaborate m => InputAnn -> Expr InputAnn -> m (Expr Ann)
 elaborateExpr ann = \case
   EAnnotated ann' e ->
     elaborateExpr ann' e
 
   ELit lit ->
-    pure $ EAnnotated (getLitType lit) (ELit lit)
+    pure $ EAnnotated (Ann ann $ getLitType lit) (ELit lit)
 
   EVar var -> do
     typer <- lookupVar ann var
@@ -288,7 +298,7 @@ elaborateExpr ann = \case
         constrain ann $ InstanceOf (TypeVar tv) (TypeVar t)
         pure $ TypeVar tv
 
-    pure $ EAnnotated typ $
+    pure $ EAnnotated (Ann ann typ) $
       EVar var
 
   EFun args sub -> do
@@ -300,7 +310,7 @@ elaborateExpr ann = \case
       (TypeVar tfun)
       (TypeFun (map (TypeVar . snd) targsEnv) tret)
 
-    pure $ EAnnotated (TypeVar tfun) $
+    pure $ EAnnotated (Ann ann $ TypeVar tfun) $
       EFun args sub'
 
   EFunCall f args -> do
@@ -310,7 +320,7 @@ elaborateExpr ann = \case
     constrain ann $ Equality
       (getType f')
       (TypeFun (map getType args') tret)
-    pure $ EAnnotated tret $
+    pure $ EAnnotated (Ann ann tret) $
       EFunCall f' args'
 
 getLitType :: Lit -> Type
