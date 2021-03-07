@@ -2,4 +2,6 @@ resolver:
   url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/17/2.yaml
 
 packages:
-- .
+- src/backend
+- src/compiler
+- src/strema

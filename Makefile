@@ -8,12 +8,17 @@ ghci:
 
 .PHONY: test
 test:
-	stack test --fast
+	stack test --fast --test-arguments="--color --color"
 
 .PHONY: test-parser
 test-parser:
-	stack test --fast --test-arguments="--match parser"
+	stack test --fast --test-arguments="--match parser --color"
 
 .PHONY: test-infer
 test-infer:
-	stack test --fast --test-arguments="--match infer"
+	stack test --fast --test-arguments="--match infer --color"
+
+.PHONY: clean
+clean:
+	stack clean && rm -r .stack-work
+

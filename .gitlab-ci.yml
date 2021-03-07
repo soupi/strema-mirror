@@ -36,7 +36,7 @@ pages:
   - cp -r website public
   - stack build --fast --no-terminal
   - stack hoogle --rebuild --no-terminal
-  - cp -r .stack-work/dist/*/*/doc/html/strema public
+  - cp -r .stack-work/install/*/*/*/doc/strema-* public/haddocks/
   artifacts:
     paths:
     - public

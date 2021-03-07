@@ -1,0 +1,61 @@
+name:                strema-backend-js
+version:             0.1.0.0
+synopsis:            A JavaScript backend for strema
+description:         Contains the relevant JavaScript AST and PrettyPrinter needed to compile Strema
+homepage:            https://gitlab.com/gilmi/strema#readme
+license:             BSD3
+license-file:        LICENSE
+author:              Gil Mizrahi
+maintainer:          gilmi@posteo.net
+copyright:           2021 Gil Mizrahi
+category:            Language
+build-type:          Simple
+cabal-version:       >=1.10
+
+library
+  hs-source-dirs:      src
+
+  exposed-modules:
+    Language.Backend.JS
+    Language.Backend.JS.Ast
+    Language.Backend.JS.Pretty
+    Language.Backend.JS.ReservedWords
+
+  build-depends:       base >= 4.7 && < 5
+                     , containers
+                     , text
+                     , prettyprinter
+
+  default-extensions:
+    LambdaCase
+    TypeApplications
+    DeriveDataTypeable
+    DeriveFunctor
+    DeriveFoldable
+    DeriveTraversable
+    DeriveGeneric
+
+  default-language:    Haskell2010
+
+  ghc-options:         -Wall
+
+test-suite strema-backend-js-test
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             Spec.hs
+
+  other-modules:
+    Tests.PrettySpec
+  build-depends:       base
+                     , strema-backend-js
+                     , text
+                     , containers
+                     , hspec
+
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  default-language:    Haskell2010
+  build-tool-depends: hspec-discover:hspec-discover == 2.*
+
+source-repository head
+  type:     git
+  location: https://gitlab.com/gilmi/strema

@@ -1,0 +1,80 @@
+name:                strema-compiler
+version:             0.1.0.0
+synopsis:            A programming language developed live on stream
+description:         This package uses strema-language and strema-backend-js together to create a compiler.
+homepage:            https://gitlab.com/gilmi/strema#readme
+license:             BSD3
+license-file:        LICENSE
+author:              Gil Mizrahi
+maintainer:          gilmi@posteo.net
+copyright:           2021 Gil Mizrahi
+category:            Language
+build-type:          Simple
+cabal-version:       >=1.10
+
+library
+  hs-source-dirs:      src
+
+  exposed-modules:
+    Language.Strema.Compiler.Compile
+    Language.Strema.Compiler.Translate
+    Language.Strema.Compiler.Run
+  other-modules:
+    Utils
+
+  build-depends:       base >= 4.7 && < 5
+                     , containers
+                     , text
+                     , mtl
+                     , uniplate
+                     , pretty-simple
+                     , optparse-generic
+                     , strema-backend-js
+                     , strema-language
+
+  default-extensions:
+    LambdaCase
+    TypeApplications
+    DeriveDataTypeable
+    DeriveFunctor
+    DeriveFoldable
+    DeriveTraversable
+    DeriveGeneric
+
+  default-language:    Haskell2010
+
+  ghc-options:         -Wall
+
+executable stremac
+  hs-source-dirs:      app
+  main-is:             Main.hs
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base
+                     , strema-compiler
+  default-language:    Haskell2010
+
+test-suite strema-compiler-test
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             Spec.hs
+
+  other-modules:
+    Tests.CompileSpec
+    Tests.TranslateSpec
+  build-depends:       base
+                     , strema-compiler
+                     , strema-language
+                     , text
+                     , containers
+                     , hspec
+                     , process
+                     , raw-strings-qq
+                     , uniplate
+
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  default-language:    Haskell2010
+  build-tool-depends: hspec-discover:hspec-discover == 2.*
+
+source-repository head
+  type:     git
+  location: https://gitlab.com/gilmi/strema
