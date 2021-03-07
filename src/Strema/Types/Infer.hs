@@ -503,6 +503,64 @@ elaborateExpr ann = \case
     pure $ EAnnotated (Ann ann dt) $
       EVariant (Variant constr expr')
 
+  ECase expr patterns -> do
+    expr' <- elaborateExpr ann expr
+    patT <- TypeVar <$> genTypeVar "t"
+    patterns' <- elaboratePatterns ann (getType expr') patT patterns
+    pure $ EAnnotated (Ann ann patT) $
+      ECase expr' patterns'
+
+-- | Elaborate patterns in case expressions
+elaboratePatterns
+  :: Elaborate m
+  => InputAnn -> Type -> Type -> [(Pattern, Sub InputAnn)] -> m [(Pattern, Sub Ann)]
+elaboratePatterns ann exprT bodyT pats = do
+  traverse (elaboratePattern ann exprT bodyT) pats
+
+-- | Elaborate a single pattern match
+elaboratePattern
+  :: Elaborate m
+  => InputAnn -> Type -> Type -> (Pattern, Sub InputAnn) -> m (Pattern, Sub Ann)
+elaboratePattern ann exprT bodyT (outerPat, body) = do
+  case outerPat of
+    PWildcard -> do
+      (t, body') <- elaborateSub body
+      constrain ann $ Equality bodyT t
+      pure (outerPat, body')
+
+    PVar v -> do
+      (t, body') <- withEnv [(v, Concrete exprT)] $ elaborateSub body
+      constrain ann $ Equality bodyT t
+      pure (outerPat, body')
+
+    PLit lit -> do
+      constrain ann $ Equality (getLitType lit) exprT
+      (t, body') <- elaborateSub body
+      constrain ann $ Equality bodyT t
+      pure (outerPat, body')
+
+    PVariant (Variant constr innerPat) -> do
+      vs@VariantSig{ vsDatatype, vsTemplate } <- lookupVariant ann constr
+      (dtvars, dt) <- instantiate vsDatatype
+      let
+        innerPatT = U.transform
+          ( \case
+            TypeVar t ->
+              -- we already checked this
+              maybe
+                (error $ toString $ "Found unbound type variable " <> pShow vs)
+                TypeVar
+                (M.lookup t dtvars)
+            t -> t
+          )
+          vsTemplate
+
+      constrain ann $ Equality exprT dt
+      (pat', body') <- elaboratePattern ann innerPatT bodyT (innerPat, body)
+      pure (PVariant (Variant constr pat'), body')
+
+
+
 -- | The type of a literal
 getLitType :: Lit -> Type
 getLitType = \case
@@ -596,6 +654,12 @@ solveConstraint (constraint, ann) =
 
       pure
         ( map (flip (,) ann) $ zipWith Equality (ret1 : args1) (ret2 : args2)
+        , mempty
+        )
+
+    Equality (TypeApp f1 a1) (TypeApp f2 a2) ->
+      pure
+        ( map (flip (,) ann) $ [Equality f1 f2, Equality a1 a2]
         , mempty
         )
 
