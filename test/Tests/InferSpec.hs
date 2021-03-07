@@ -114,7 +114,7 @@ functions = do
     it "const" $
       shouldBe
         (testinfer "def const(x, y) := x")
-        ( pure $ boilerplateFun "const_" (TypeFun [TypeVar "t3", TypeVar "t4"] (TypeVar "t3")) ["x", "y"]
+        ( pure $ boilerplateFun "const" (TypeFun [TypeVar "t3", TypeVar "t4"] (TypeVar "t3")) ["x", "y"]
           [ SExpr $ EAnnotated (TypeVar "t3") $ EVar "x"
           ]
         )

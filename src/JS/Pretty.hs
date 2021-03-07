@@ -11,10 +11,12 @@ module JS.Pretty where
 
 import qualified Data.Map as M
 import qualified Data.Text as T
+import qualified Data.Set as S
 import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text
 
 import JS.Ast
+import JS.ReservedWords
 
 ---------------
 -- Rendering --
@@ -55,17 +57,21 @@ ppStmt = \case
       , "}"
       ]
   SRecordClone var expr ->
-    "var" <+> pretty var <+> "=" <+> "Object.assign({}," <+> ppExpr expr <> ");"
+    "var" <+> pretty (sanitizeReserved var) <+> "=" <+> "Object.assign({}," <+> ppExpr expr <> ");"
   SRecordAssign var lbl newval ->
-    pretty var <> "." <> pretty lbl <+> "=" <+> ppExpr newval <+> ";"
+    pretty (sanitizeReserved var) <> "." <> pretty (sanitizeReserved lbl) <+> "=" <+> ppExpr newval <+> ";"
 
 
 ppDef :: Definition -> Doc ann
 ppDef = \case
   Variable var e ->
-    "var" <+> pretty var <+> "=" <+> ppExpr e
+    "var" <+> pretty (sanitizeReserved var) <+> "=" <+> ppExpr e
   Function name args body ->
-    group ("var" <+> pretty name <+> "=") <+> ppExpr (EFun args body)
+    group ("var" <+> pretty (sanitizeReserved name) <+> "=") <+> ppExpr (EFun args body)
+
+sanitizeReserved :: T.Text -> T.Text
+sanitizeReserved var =
+  (if S.member var reservedWords then (<>) "__" else id) var
 
 ppExpr :: Expr -> Doc a
 ppExpr = \case
@@ -73,7 +79,7 @@ ppExpr = \case
     ppLit lit
 
   EVar var ->
-    pretty var
+    pretty (sanitizeReserved var)
 
   ERecord record ->
     ppRecord ppExpr record

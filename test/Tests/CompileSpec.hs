@@ -51,6 +51,18 @@ end
         , expected = "2"
         }
 
+    it "const" $
+      check $ Check
+        { program = [r|
+def const(a, b) := a
+
+def main() := do
+    ffi("console.log", const(1, 2))
+end
+|]
+        , expected = "1"
+        }
+
 
 data Check
   = Check

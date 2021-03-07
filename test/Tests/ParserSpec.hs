@@ -159,8 +159,8 @@ vars = do
 
     it "with symbols" $
       shouldBe
-        (testParserNoAnn parseExpr "v_123?")
-        (pure $ EVar "v_123?")
+        (testParserNoAnn parseExpr "v_123")
+        (pure $ EVar "v_123")
 
 recordsExpr :: Spec
 recordsExpr = do

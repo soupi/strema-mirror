@@ -36,12 +36,10 @@ import Data.Text (Text)
 import Data.Foldable (foldl')
 import qualified Data.Text as T
 import qualified Data.Map as M
-import qualified Data.Set as S
 import Text.Megaparsec ((<?>))
 import qualified Text.Megaparsec as P
 import qualified Text.Megaparsec.Char as P
 import qualified Text.Megaparsec.Char.Lexer as L
-import qualified JS as JS
 
 import Strema.Ast
 
@@ -194,16 +192,13 @@ name' begin = do
   P.notFollowedBy reservedWord
   c <- begin
   rest <- P.many nameRest
-  let nm = T.pack $ c : rest
-  pure $ if nm `S.member` JS.reservedWords
-    then nm <> "_"
-    else nm
+  pure $ T.pack $ c : rest
 
 nameRest :: Parser Char
 nameRest =
   P.choice
     [ P.alphaNumChar
-    , P.oneOf ['_', '\'', '?']
+    , P.char '_'
     ]
 
 
