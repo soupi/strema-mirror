@@ -298,7 +298,7 @@ end
 |]
         )
         ( pure $ File
-          [ TypeDef
+          [ TypeDef ()
               ( Datatype "List" [ "a" ]
                   [ Variant "Nil" (TypeRec [])
                   , Variant "Cons" $ TypeRec

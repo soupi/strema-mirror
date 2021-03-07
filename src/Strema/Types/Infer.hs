@@ -12,6 +12,7 @@ with concrete types.
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Strema.Types.Infer where
 
@@ -60,6 +61,11 @@ data TypeError
   | UnboundVar Var
   | InfiniteType TypeVar Type
   | ArityMismatch Type Type
+  | UnboundTypeVarsInType Datatype
+  | DuplicateTypeVarsInSig Datatype
+  | DuplicateConstrs Datatype
+  | DuplicateConstrs2 [(Constr, (VariantSig InputAnn, VariantSig InputAnn))]
+  | NotSuchVariant Constr
   deriving Show
 
 -- | Represents the constraints on types we collect during the elaboration phase.
@@ -98,15 +104,15 @@ getTermName = \case
   Variable name _ -> name
   Function name _ _ -> name
 
-getTermDef :: Definition a -> Maybe (TermDef a)
+getTermDef :: Definition InputAnn -> Maybe (InputAnn, TermDef InputAnn)
 getTermDef = \case
-  TermDef _ def -> Just def
+  TermDef ann def -> Just (ann, def)
   TypeDef{} -> Nothing
 
-getTypeDef :: Definition a -> Maybe Datatype
+getTypeDef :: Definition InputAnn -> Maybe (InputAnn, Datatype)
 getTypeDef = \case
   TermDef{} -> Nothing
-  TypeDef def -> Just def
+  TypeDef ann def -> Just (ann, def)
 
 -- | Retrieve the annotation of an expression. Will explode when used on a non @EAnnotated@ node.
 getExprAnn :: Expr a -> a
@@ -140,6 +146,22 @@ elaborate = runElaborate
 
 type Env a = Map Var a
 
+
+-- data Datatype
+--   = Datatype Constr [TypeVar] [Variant Type]
+--   deriving (Show, Eq, Ord, Data)
+
+type VariantEnv a
+  = Map Constr (VariantSig a)
+
+data VariantSig a
+  = VariantSig
+    { vsDatatype :: Type
+    , vsTemplate :: Type
+    , vsAnn :: a
+    }
+  deriving (Show, Eq, Ord, Data)
+
 -- | The state we keep during elaboration.
 data ElabState
   = ElabState
@@ -147,6 +169,9 @@ data ElabState
     -- ^ Used to generate unique type variable names.
     , esConstraints :: Constraints
     -- ^ The constraints we collect.
+    , esVariantEnv :: VariantEnv InputAnn
+    -- ^ Mapping from a data constructor name to the data type
+    --   and variant type signature.
     }
 
 -- | The environment we use.
@@ -228,6 +253,27 @@ withEnv' = local . insertToEnv
 withoutEnv :: Elaborate m => [Var] -> m a -> m a
 withoutEnv = local . removeFromEnv
 
+-- | Lookup variant in env
+lookupVariant :: Elaborate m => InputAnn -> Constr -> m (VariantSig InputAnn)
+lookupVariant ann constr = do
+  maybe (throwErr [ann] $ NotSuchVariant constr) pure . M.lookup constr . esVariantEnv =<< get
+
+-- | Add a datatype information into the environment
+addVariantSigs :: Elaborate m => VariantEnv InputAnn -> m ()
+addVariantSigs venv = do
+  s <- get
+  let
+    env = esVariantEnv s
+    duplicates = M.toList $ M.intersectionWith (,) venv env
+
+  -- check for duplicate variants
+  case duplicates of
+    [] -> pure ()
+    (d, v) : rest -> do
+      throwErr [vsAnn $ fst v] $ DuplicateConstrs2 ((d,v ) : rest)
+
+  put $ s { esVariantEnv = env `M.union` venv }
+
 -- | Generate a new type variable.
 genTypeVar :: MonadState ElabState m => Text -> m TypeVar
 genTypeVar prefix = do
@@ -252,7 +298,7 @@ runElaborate :: Env Type -> File InputAnn -> Either TypeErrorA (File Ann, Constr
 runElaborate builtins =
   ( fmap (fmap esConstraints)
   . runExcept
-  . flip runStateT (ElabState 0 mempty)
+  . flip runStateT (ElabState 0 mempty mempty) -- @TODO: add builtins variants?
   . flip runReaderT (ElabEnv mempty builtins)
   . elaborateFile
   )
@@ -262,31 +308,60 @@ elaborateFile :: Elaborate m => File InputAnn -> m (File Ann)
 elaborateFile (File defs) = do
   let
     termDefs = mapMaybe getTermDef defs
-    names = map getTermName termDefs
+    typeDefs = mapMaybe getTypeDef defs
+    names = map (getTermName . snd) termDefs
   -- We invent types for top level term definitions.
   -- These should be let polymorphic so we use @Instance@ instead of @Concrete@
+  typeDefs' <- traverse (uncurry elaborateTypeDef) typeDefs
   vars <- traverse (\name -> (,) name . Instance <$> genTypeVar "t") names
-  File <$> withEnv vars (traverse elaborateDef defs)
+  File . (<>) typeDefs' <$> withEnv vars (traverse (uncurry elaborateDef) termDefs)
 
--- | Elaborate a @TermDef@ or @TypeDef@
-elaborateDef :: Elaborate m => Definition InputAnn -> m (Definition Ann)
-elaborateDef = \case
-  TermDef ann def -> do
-    -- we need to change the type of def in the current environment for recursive functions
-    let name = getTermName def
-    t <- genTypeVar name
-    -- When evaluating a definition, the type should not be let polymorphic.
-    elab <- withEnv [(name, Concrete $ TypeVar t)] $ elaborateTermDef ann def
-    lookupVar ann name >>= \case
-      Instance t' ->
-        -- @t'@ is the type other definitions see.
-        -- It is an instantiation of the type we just elaborated for def.
-        constrain ann $ InstanceOf (TypeVar t') (eiType elab)
-      _ ->
-        pure ()
-    pure $ TermDef (Ann ann $ eiType elab) (eiResult elab)
+elaborateTypeDef :: Elaborate m => InputAnn -> Datatype -> m (Definition Ann)
+elaborateTypeDef ann = \case
+  dt@(Datatype typename args variants) -> do
+    let
+      datatype = foldl' TypeApp (TypeCon typename) (map TypeVar args)
+      boundvars = S.fromList args
+      variantsvars = [ t | TypeVar t <- U.universeBi variants ]
+      constrs = S.fromList $ map (\(Variant constr _) -> constr) variants
+    
+    -- check for duplicate data constructors, duplicate type variables
+    -- and unbound type vars
+    unless (length boundvars == length args) $
+      throwErr [ann] $ DuplicateTypeVarsInSig dt
 
--- | Elaborate a term definition
+    unless (length variants == length constrs) $
+      throwErr [ann] $ DuplicateConstrs dt
+
+    unless (all (`S.member` boundvars) variantsvars) $
+      throwErr [ann] $ UnboundTypeVarsInType dt
+
+    -- convert to @VariantSig@s
+    let
+      variantsigs = M.fromList $
+        map (\(Variant constr template) -> (constr, VariantSig datatype template ann)) variants
+    addVariantSigs variantsigs
+    
+    pure $ TypeDef (Ann ann tUnit) dt
+
+-- | Elaborate a @TermDef@
+elaborateDef :: Elaborate m => InputAnn -> TermDef InputAnn -> m (Definition Ann)
+elaborateDef ann def = do
+  -- we need to change the type of def in the current environment for recursive functions
+  let name = getTermName def
+  t <- genTypeVar name
+  -- When evaluating a definition, the type should not be let polymorphic.
+  elab <- withEnv [(name, Concrete $ TypeVar t)] $ elaborateTermDef ann def
+  lookupVar ann name >>= \case
+    Instance t' ->
+      -- @t'@ is the type other definitions see.
+      -- It is an instantiation of the type we just elaborated for def.
+      constrain ann $ InstanceOf (TypeVar t') (eiType elab)
+    _ ->
+      pure ()
+  pure $ TermDef (Ann ann $ eiType elab) (eiResult elab)
+
+-- | Elaborate a term definition helper function
 elaborateTermDef :: Elaborate m => InputAnn -> TermDef InputAnn -> m (ElabInfo (TermDef Ann))
 elaborateTermDef ann = \case
   Variable name expr -> do
@@ -405,6 +480,29 @@ elaborateExpr ann = \case
     pure $ EAnnotated (Ann ann tret) $
       EFunCall f' args'
 
+  -- lookup variant in the environment
+  EVariant (Variant constr expr) -> do
+    expr' <- elaborateExpr ann expr
+    vs@VariantSig{ vsDatatype, vsTemplate } <- lookupVariant ann constr
+    (dtvars, dt) <- instantiate vsDatatype
+    let
+      specialized = U.transform
+        ( \case
+          TypeVar t ->
+            -- we already checked this
+            maybe
+              (error $ toString $ "Found unbound type variable " <> pShow vs)
+              TypeVar
+              (M.lookup t dtvars)
+          t -> t
+        )
+        vsTemplate
+
+    constrain ann $ Equality specialized (getType expr')
+
+    pure $ EAnnotated (Ann ann dt) $
+      EVariant (Variant constr expr')
+
 -- | The type of a literal
 getLitType :: Lit -> Type
 getLitType = \case
@@ -450,7 +548,7 @@ type Solve m
 runSolve :: Constraints -> Either TypeErrorA Substitution
 runSolve =
   ( runExcept
-  . flip evalStateT (ElabState 0 mempty)
+  . flip evalStateT (ElabState 0 mempty mempty)
   . solveConstraints mempty
   . S.toList
   )
@@ -473,7 +571,7 @@ solveConstraint (constraint, ann) =
   case constraint of
     -- For let polymorphism. Instantiate a type.
     InstanceOf t1 t2 -> do
-      t2' <- instantiate t2
+      (_, t2') <- instantiate t2
       pure ([(Equality t1 t2', ann)], mempty)
 
     -- When the two types are equals, there's nothing to do.
@@ -507,7 +605,7 @@ solveConstraint (constraint, ann) =
 
 -- | Create an instance of a type.
 --   (The type serves as a template for specialized types)
-instantiate :: Solve m => Type -> m Type
+instantiate :: Solve m => Type -> m (Env TypeVar, Type)
 instantiate typ = do
   -- collect all type variables, generate a new type variable for each one
   -- replace old type variables with new ones
@@ -515,7 +613,7 @@ instantiate typ = do
     [ (,) tv <$> genTypeVar "ti"
     | TypeVar tv <- U.universe typ
     ]
-  pure $ flip U.transform typ $ \case
+  pure $ (,) env $ flip U.transform typ $ \case
     TypeVar tv
       | Just tv' <- M.lookup tv env ->
         TypeVar tv'

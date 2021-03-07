@@ -21,7 +21,7 @@ data File a
   deriving (Show, Eq, Ord, Data, Functor, Foldable, Traversable)
 
 data Definition a
-  = TypeDef Datatype
+  = TypeDef a Datatype
   | TermDef a (TermDef a)
   deriving (Show, Eq, Ord, Data, Functor, Foldable, Traversable)
 

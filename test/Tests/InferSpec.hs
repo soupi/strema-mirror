@@ -27,6 +27,7 @@ spec = do
     lambdas
     funcalls
     functions
+    variants
 
 lits :: Spec
 lits = do
@@ -114,6 +115,28 @@ functions = do
         (testinfer "def const(x, y) := x")
         ( pure $ boilerplateFun "const_" (TypeFun [TypeVar "t3", TypeVar "t4"] (TypeVar "t3")) ["x", "y"]
           [ SExpr $ EAnnotated (TypeVar "t3") $ EVar "x"
+          ]
+        )
+
+variants :: Spec
+variants = do
+  describe "variants" $ do
+    it "Id" $
+      shouldBe
+        ( testinfer [r|
+type Id a =
+    | Id a
+end
+
+def oneId := Id 1
+|])
+        ( pure $ File
+          [ TypeDef tUnit $ Datatype "Id" ["a"]
+            [Variant "Id" (TypeVar "a")]
+          , TermDef (TypeApp (TypeCon "Id") tInt) $
+            Variable "oneId" $
+              EAnnotated (TypeApp (TypeCon "Id") tInt) $
+                EVariant $ Variant "Id" $ EAnnotated tInt $ ELit $ LInt 1
           ]
         )
 

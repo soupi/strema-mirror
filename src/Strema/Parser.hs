@@ -218,7 +218,7 @@ parseDef = do
   ann <- getAnn
   P.choice
     [ TermDef ann <$> parseTermDef
-    , TypeDef <$> parseTypeDef
+    , TypeDef ann <$> parseTypeDef
     ]
 
 -- * Types
