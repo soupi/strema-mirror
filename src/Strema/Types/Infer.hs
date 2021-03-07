@@ -56,6 +56,7 @@ data Ann
 
 type TypeErrorA = ([InputAnn], TypeError)
 
+-- | The type of type errors.
 data TypeError
   = TypeMismatch Type Type
   | UnboundVar Var
@@ -79,6 +80,7 @@ data Constraint
 -- | A constraint with the input annotation.
 type ConstraintA = (Constraint, InputAnn)
 
+-- | A @Set@ of constraints.
 type Constraints = Set ConstraintA
 
 -- | A mapping from type variable to types. This is the output of the constraint solving phase. 
@@ -96,19 +98,23 @@ data Typer
 ------------------
 -- * General Utils
 
+-- | Throw an error with annotation.
 throwErr :: MonadError TypeErrorA m => [InputAnn] -> TypeError -> m a
 throwErr ann err = throwError (ann, err)
 
+-- | Get the name of a term definition.
 getTermName :: TermDef a -> Var
 getTermName = \case
   Variable name _ -> name
   Function name _ _ -> name
 
+-- | Extract a term definition and annotation.
 getTermDef :: Definition InputAnn -> Maybe (InputAnn, TermDef InputAnn)
 getTermDef = \case
   TermDef ann def -> Just (ann, def)
   TypeDef{} -> Nothing
 
+-- | Extract a type definition and annotation.
 getTypeDef :: Definition InputAnn -> Maybe (InputAnn, Datatype)
 getTypeDef = \case
   TermDef{} -> Nothing
@@ -144,16 +150,14 @@ elaborate = runElaborate
 ------------
 -- ** Types
 
+-- | An environment from a name to something.
 type Env a = Map Var a
 
-
--- data Datatype
---   = Datatype Constr [TypeVar] [Variant Type]
---   deriving (Show, Eq, Ord, Data)
-
+-- | A mapping from a data constructor to the type that defines it and the type it holds.
 type VariantEnv a
   = Map Constr (VariantSig a)
 
+-- | Relevant information about a data constructor.
 data VariantSig a
   = VariantSig
     { vsDatatype :: Type
@@ -295,11 +299,11 @@ noAnn expr = error $ toString $ "Found an expression with source position: " <> 
 
 -- | Run the algorithm.
 runElaborate :: Env Type -> File InputAnn -> Either TypeErrorA (File Ann, Constraints)
-runElaborate builtins =
+runElaborate builtinsTypes =
   ( fmap (fmap esConstraints)
   . runExcept
   . flip runStateT (ElabState 0 mempty mempty) -- @TODO: add builtins variants?
-  . flip runReaderT (ElabEnv mempty builtins)
+  . flip runReaderT (ElabEnv mempty builtinsTypes)
   . elaborateFile
   )
 
@@ -316,6 +320,7 @@ elaborateFile (File defs) = do
   vars <- traverse (\name -> (,) name . Instance <$> genTypeVar "t") names
   File . (<>) typeDefs' <$> withEnv vars (traverse (uncurry elaborateDef) termDefs)
 
+-- | Add a data type to the VariantEnv and elaborate it with a dummy type.
 elaborateTypeDef :: Elaborate m => InputAnn -> Datatype -> m (Definition Ann)
 elaborateTypeDef ann = \case
   dt@(Datatype typename args variants) -> do
@@ -582,7 +587,7 @@ we go over the rest of the constraints and replace @t1@ with @Int@ (__apply the 
 We also keep all the substitutions we created from the constraints (and merge them to one substitution
 but applying new substitution to the accumulated substitution).
 
-If we see ~Equality (TypeCon "Int") (TypeCon "String")~, we throw a type error,
+If we see @Equality (TypeCon "Int") (TypeCon "String")@, we throw a type error,
 because the two types do not match.
 
 We keep going until there are no more constraints or until we encountered an error.
@@ -628,6 +633,7 @@ solveConstraint (constraint, ann) =
   -- case ltrace "constraint" constraint of
   case constraint of
     -- For let polymorphism. Instantiate a type.
+    -- See the comment on @instantiate@ for more information.
     InstanceOf t1 t2 -> do
       (_, t2') <- instantiate t2
       pure ([(Equality t1 t2', ann)], mempty)
@@ -667,8 +673,37 @@ solveConstraint (constraint, ann) =
     Equality t1 t2 ->
       throwErr [ann] $ TypeMismatch t1 t2
 
--- | Create an instance of a type.
---   (The type serves as a template for specialized types)
+{- | Create an instance of a type. (The type serves as a template for specialized types)
+
+Let polymorphism gives us the ability to use a generic function in more contexts.
+
+For example, @id@ is a function that can work for @x@ of any type. But our algorithm
+collects constraints globally, including that:
+
+@
+def id := fun(x) -> x
+
+def one := id(1)          -- constrain that the type of id __is equal to__ the type [Int] -> tN
+
+def hello := id("hello")  -- constrain that the type of id __is equal to__ the type [String] -> tM
+@
+
+We need to invent a new constraint that will define the relationship between the type of id
+and the arguments passing to it as an __Instance of__ relationship.
+
+@InstanceOf t1 t2@ relationship means that @t1@ is an @instantiation@ of @t2@
+(or a special case if you will).
+What we'll do is copy the type of @t2@, generate new type variables in place of all type variables
+inside of it, and then say that this new type @t3@ has an equality relationship with @t1@.
+
+It's important to solve the equality constraints for each function before solving the InstanceOf
+constraints, so that when we instantiate we already have the final type of the function.
+
+We will highjack the @Ord@ instance deriving (constructors defined later are bigger)
+and the fact that @Set@ is ordered to accomplish that.
+
+
+-}
 instantiate :: Solve m => Type -> m (Env TypeVar, Type)
 instantiate typ = do
   -- collect all type variables, generate a new type variable for each one
@@ -688,25 +723,27 @@ instantiate typ = do
 --------------------------
 -- * Substitute
 
-{- |
-
-Apply a substitution
+{- | Apply a substitution.
 
 -}
 
+-- ** API
+
+-- | Replaces all type variables for any data type that
+--   has an instance of Data using uniplate magic
+substitute :: Substitute m => Data f => Substitution -> f -> m f
+substitute sub = U.transformBiM (replaceTypeVar sub)
+
 -- ** Types
 
+-- | Monadic capabilities of Substitute
 type Substitute m
   = ( MonadError TypeErrorA m
     )
 
--- | Replaces all type variables for any data type that has an instance of Data using uniplate magic
-substitute
-  :: Substitute m
-  => Data f
-  => Substitution -> f -> m f
-substitute sub = U.transformBiM (replaceTypeVar sub)
+-- ** Algorithm
 
+-- | Find type variables that appear in the substitution and replace them.
 replaceTypeVar :: Substitute m => Substitution -> Type -> m Type
 replaceTypeVar sub = \case
   TypeVar v ->

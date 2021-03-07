@@ -5,7 +5,8 @@
 *** DONE Multiple statements support
 *** DONE Let polymorphism
 *** DONE Function definitions support
-*** TODO Builtins
-*** TODO Data types
-*** TODO Pattern Matching
+*** DONE Builtins
+*** DONE Data types
+*** DONE Pattern Matching
+*** TODO Builtin data types
 *** TODO Extensible records
