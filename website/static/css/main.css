@@ -3,6 +3,10 @@
   src: url(../fonts/Iosevka_Fixed_Regular.ttf);
 }
 
+html {
+    min-height: 100%;
+}
+
 body {
   	background-image: linear-gradient(rgb(30,25,35), rgb(30,35,50), #864450, #e66465);
 
