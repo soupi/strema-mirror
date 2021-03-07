@@ -11,7 +11,7 @@ A compiler targeting javascript for a custom type inferred programming language 
 > logos adapted from “Rad Pack – 80’s Theme” Wallpapers by Nate Wren (CC BY-NC 4.0)
 
 This project is streamed on [twitch.tv/suppipi](https://twitch.tv/suppipi).
-More information in this [blog post](https://gilmi.me/blog/post/2021/02/11/strema-streaming).
+For more information visit the [webpage](https://gilmi.gitlab.io/strema).
 
 ## Build and run
 

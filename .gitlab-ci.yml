@@ -34,6 +34,9 @@ pages:
   stage: pages
   script:
   - cp -r website public
+  - stack build --fast --no-terminal
+  - stack hoogle --rebuild --no-terminal
+  - cp -r .stack-work/dist/*/*/doc/html/strema public
   artifacts:
     paths:
     - public

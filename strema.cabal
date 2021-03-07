@@ -1,7 +1,9 @@
 name:                strema
 version:             0.1.0.0
--- synopsis:
--- description:
+synopsis:            A programming language developed live on stream
+description:         Strema is a statically typed, (mostly) functional programming language
+                     with first-class functions, records, ADTs, and pattern matching
+                     and is developed live on stream. This is a compiler from Strema to JavaScript.
 homepage:            https://gitlab.com/gilmi/strema#readme
 license:             BSD3
 license-file:        LICENSE
@@ -11,6 +13,7 @@ copyright:           2021 Gil Mizrahi
 category:            Language
 build-type:          Simple
 extra-source-files:  README.md
+                     overview.org
 cabal-version:       >=1.10
 
 library
