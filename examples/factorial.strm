@@ -5,3 +5,4 @@ def fac(n) :=
         | _ -> mul(n, fac(sub(n, 1)))
     end
 
+def main() := ffi("console.log", fac(5))

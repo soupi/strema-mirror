@@ -18,8 +18,8 @@ For more information visit the [webpage](https://gilmi.gitlab.io/strema).
 Prerequisites: [Stack](https://haskellstack.org) (Could probably also be built with [Cabal+GHC](https://www.haskell.org/downloads/) instead).
 
 ```sh
-stack run -- compile --input=program.strm
+> stack run -- compile --input examples/factorial.strm --output /tmp/output.js
+> node /tmp/output.js
+120
 ```
-
-
 
