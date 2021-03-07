@@ -28,6 +28,7 @@ spec = do
     funcalls
     functions
     variants
+    let_polymorphism
 
 lits :: Spec
 lits = do
@@ -137,6 +138,38 @@ def oneId := Id 1
             Variable "oneId" $
               EAnnotated (TypeApp (TypeCon "Id") tInt) $
                 EVariant $ Variant "Id" $ EAnnotated tInt $ ELit $ LInt 1
+          ]
+        )
+
+let_polymorphism :: Spec
+let_polymorphism = do
+  describe "let polymorphism" $ do
+    it "id" $
+      shouldBe
+        ( testinfer [r|
+def id(x) := x
+def intId := id(1)
+def strId := id("hello")
+|])
+        ( pure $ File
+          [ TermDef (TypeFun [TypeVar "t5"] (TypeVar "t5")) $
+            Function "id" ["x"]
+              [ SExpr $ EAnnotated (TypeVar "t5") $ EVar "x"
+              ]
+
+          , TermDef tInt $
+            Variable "intId" $
+              EAnnotated tInt $
+                EFunCall
+                  (EAnnotated (TypeFun [tInt] tInt) (EVar "id"))
+                  [EAnnotated tInt $ ELit $ LInt 1]
+
+          , TermDef tString $
+            Variable "strId" $
+              EAnnotated tString $
+                EFunCall
+                  (EAnnotated (TypeFun [tString] tString) (EVar "id"))
+                  [EAnnotated tString $ ELit $ LString "hello"]
           ]
         )
 
