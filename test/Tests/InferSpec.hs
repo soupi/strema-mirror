@@ -26,6 +26,7 @@ spec = do
     lits
     lambdas
     funcalls
+    functions
 
 lits :: Spec
 lits = do
@@ -72,11 +73,59 @@ funcalls = do
             ]
         )
 
+functions :: Spec
+functions = do
+  describe "functions" $ do
+    it "builtin add" $
+      shouldBe
+        (testinfer "def increment(n) := add(n, 1)")
+        ( pure $ boilerplateFun "increment" (TypeFun [tInt] tInt) ["n"]
+          [ SExpr $
+            EAnnotated tInt $ EFunCall
+              (EAnnotated (TypeFun [tInt, tInt] tInt) (EVar "add"))
+              [EAnnotated tInt $ EVar "n", EAnnotated tInt $ ELit $ LInt 1]
+          ]
+        )
+
+    it "builtin bool" $
+      shouldBe
+        (testinfer "def nand(x, y) := not(and(x, y))")
+        ( pure $ boilerplateFun "nand" (TypeFun [tBool, tBool] tBool) ["x", "y"]
+          [ SExpr $
+            EAnnotated tBool $ EFunCall
+              (EAnnotated (TypeFun [tBool] tBool) (EVar "not"))
+              [ EAnnotated tBool $ EFunCall
+                  (EAnnotated (TypeFun [tBool, tBool] tBool) (EVar "and"))
+                  [EAnnotated tBool $ EVar "x", EAnnotated tBool $ EVar "y"]
+              ]
+          ]
+        )
+
+    it "id" $
+      shouldBe
+        (testinfer "def id(x) := x")
+        ( pure $ boilerplateFun "id" (TypeFun [TypeVar "t3"] (TypeVar "t3")) ["x"]
+          [ SExpr $ EAnnotated (TypeVar "t3") $ EVar "x"
+          ]
+        )
+
+    it "const" $
+      shouldBe
+        (testinfer "def const(x, y) := x")
+        ( pure $ boilerplateFun "const_" (TypeFun [TypeVar "t3", TypeVar "t4"] (TypeVar "t3")) ["x", "y"]
+          [ SExpr $ EAnnotated (TypeVar "t3") $ EVar "x"
+          ]
+        )
+
 -------------------------
 
 boilerplate :: Var -> Type -> Expr Type -> File Type
 boilerplate name typ expr =
   File [TermDef typ $ Variable name $ EAnnotated typ expr]
+
+boilerplateFun :: Var -> Type -> [Var] -> Sub Type -> File Type
+boilerplateFun name typ args body =
+  File [TermDef typ $ Function name  args body]
 
 testinfer :: T.Text -> Either T.Text (File Type)
 testinfer = fmap (fmap annType) . inferPipeline "test"

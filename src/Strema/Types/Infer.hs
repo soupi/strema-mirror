@@ -33,7 +33,7 @@ import qualified Data.Generics.Uniplate.Data as U
 -- | Infer the types for all expressions in a source file
 infer :: File InputAnn -> Either TypeErrorA (File Ann)
 infer file = do
-  (elaborated, constraints) <- elaborate file
+  (elaborated, constraints) <- elaborate (fmap bType builtins) file
   -- ltraceM "elaborated" elaborated
   -- ltraceM "constraints" constraints
   sub <- solve constraints
@@ -132,7 +132,7 @@ depending on its syntactic use.
 
 -}
 
-elaborate :: File InputAnn -> Either TypeErrorA (File Ann, Constraints)
+elaborate :: Env Type -> File InputAnn -> Either TypeErrorA (File Ann, Constraints)
 elaborate = runElaborate
 
 ------------
@@ -154,6 +154,7 @@ data ElabEnv
   = ElabEnv
     { eeTypeEnv :: Env Typer
     -- ^ Represents the variables in scope and their types (including if they are let-polymorphic or not).
+    , eeBuiltins :: Env Type
     }
 
 -- | The monadic capabilities for the elaboration phase.
@@ -192,17 +193,28 @@ lookupVar ann var = do
     pure
     (M.lookup var env)
 
+-- | Look for a builtin value/function. Throws an @UnboundVar@ error on failure.
+lookupBuiltin :: Elaborate m => InputAnn -> Var -> m Type
+lookupBuiltin ann var = do
+  env <- asks eeBuiltins
+  maybe
+    (throwErr [ann] $ UnboundVar var)
+    pure
+    (M.lookup var env)
+
 -- | Adding new variable into the scope
 insertToEnv :: Env Typer -> ElabEnv -> ElabEnv
-insertToEnv vars (ElabEnv env) =
-  ElabEnv $ M.union
-    vars
-    env
+insertToEnv vars elabEnv =
+  elabEnv
+    { eeTypeEnv = M.union vars (eeTypeEnv elabEnv)
+    }
 
 -- | Remove variables from the scope
 removeFromEnv :: [Var] -> ElabEnv -> ElabEnv
-removeFromEnv vars (ElabEnv env) =
-  ElabEnv $ foldr M.delete env vars
+removeFromEnv vars elabEnv =
+  elabEnv
+    { eeTypeEnv = foldr M.delete (eeTypeEnv elabEnv) vars
+    }
 
 -- | Run an elaboration function with extra variables in scope.
 withEnv :: Elaborate m => [(Var, Typer)] -> m a -> m a
@@ -236,12 +248,12 @@ noAnn expr = error $ toString $ "Found an expression with source position: " <> 
 -- ** Algorithm
 
 -- | Run the algorithm.
-runElaborate :: File InputAnn -> Either TypeErrorA (File Ann, Constraints)
-runElaborate =
+runElaborate :: Env Type -> File InputAnn -> Either TypeErrorA (File Ann, Constraints)
+runElaborate builtins =
   ( fmap (fmap esConstraints)
   . runExcept
   . flip runStateT (ElabState 0 mempty)
-  . flip runReaderT (ElabEnv mempty)
+  . flip runReaderT (ElabEnv mempty builtins)
   . elaborateFile
   )
 
@@ -355,14 +367,16 @@ elaborateExpr ann = \case
 
   -- For variables, we look it up in the environment
   EVar var -> do
-    typer <- lookupVar ann var
+    typer <- lookupVarMaybe var
     typ <- case typer of
-      Concrete t -> pure t
+      Just (Concrete t) -> pure t
       -- For let-polymorphism
-      Instance t -> do
+      Just (Instance t) -> do
         tv <- genTypeVar "t"
         constrain ann $ InstanceOf (TypeVar tv) (TypeVar t)
         pure $ TypeVar tv
+      Nothing -> do
+        lookupBuiltin ann var
 
     pure $ EAnnotated (Ann ann typ) $
       EVar var

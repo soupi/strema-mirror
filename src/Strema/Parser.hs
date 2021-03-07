@@ -36,6 +36,7 @@ import Data.Text (Text)
 import Data.Foldable (foldl')
 import qualified Data.Text as T
 import qualified Data.Map as M
+import qualified Data.Set as S
 import Text.Megaparsec ((<?>))
 import qualified Text.Megaparsec as P
 import qualified Text.Megaparsec.Char as P
@@ -154,7 +155,7 @@ number = do
       pure $ LFloat (read $ maybe [] pure sign <> num1 <> "." <> n)
 
 reservedWords :: [Text]
-reservedWords = (<>) JS.reservedWords
+reservedWords =
   [ "def"
   , "do"
   , "end"
@@ -193,7 +194,10 @@ name' begin = do
   P.notFollowedBy reservedWord
   c <- begin
   rest <- P.many nameRest
-  pure $ T.pack (c : rest)
+  let nm = T.pack $ c : rest
+  pure $ if nm `S.member` JS.reservedWords
+    then nm <> "_"
+    else nm
 
 nameRest :: Parser Char
 nameRest =

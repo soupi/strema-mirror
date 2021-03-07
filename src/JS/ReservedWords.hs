@@ -9,9 +9,10 @@ https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Lexical_gramma
 module JS.ReservedWords where
 
 import Utils
+import qualified Data.Set as S
 
-reservedWords :: [Text]
-reservedWords =
+reservedWords :: Set Text
+reservedWords = S.fromList $
   [ "break"
   , "case"
   , "catch"
