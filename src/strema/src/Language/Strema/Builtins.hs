@@ -12,20 +12,20 @@ Includes:
 {-# language OverloadedStrings #-}
 
 module Language.Strema.Builtins
-  ( -- types
+  ( -- * Types
     tUnit
   , tInt
   , tFloat
   , tString
   , tBool
-    -- values
+    -- * Values
   , true
   , false
   , unit
-    -- datatypes
+    -- * Data types
   , dataBool
   , dataOption
-    -- functions
+    -- * Functions
   , Builtins
   , Builtin(..)
   , Impl(..)
@@ -66,7 +66,7 @@ false = EVariant (Variant "False" unit)
 unit :: Expr ()
 unit = ERecord mempty
 
--- * datatypes
+-- * Data types
 
 dataBool :: Datatype
 dataBool =
@@ -84,19 +84,23 @@ dataOption =
 
 -- * Functions
 
+-- | A Built-in function
 data Builtin
   = Builtin
-    { bName :: Var
-    , bType :: Type
-    , bImpl :: Impl
+    { bName :: Var -- ^ the name
+    , bType :: Type -- ^ the type
+    , bImpl :: Impl -- ^ the implementation
     }
 
+-- | The type of the function and it's
+--   implementation in the target source code
 data Impl
   = Func T.Text
   | BinOp T.Text
 
 type Builtins = M.Map Var Builtin
 
+-- | All of the builtin functions
 builtins :: Builtins
 builtins = M.unions
   [ ints
@@ -104,6 +108,7 @@ builtins = M.unions
   , strings
   ]
 
+-- | Integer builtins
 ints :: Builtins
 ints = M.fromList
   [ binop "add" binInt "+"
@@ -119,6 +124,7 @@ ints = M.fromList
   where
     binInt = TypeFun [tInt, tInt] tInt
 
+-- | Boolean builtins
 bools :: Builtins
 bools = M.fromList
   [ binop "and" (TypeFun [tBool, tBool] tBool)
@@ -129,16 +135,19 @@ bools = M.fromList
     "function (x) { return !x; }"
   ]
 
+-- | String builtins
 strings :: Builtins
 strings = M.fromList
   [ binop "concat" (TypeFun [tString, tString] tString)
     "+"
   ]
 
+-- | Binary operator helper constructor
 binop :: Var -> Type -> T.Text -> (Var, Builtin)
 binop name typ impl =
   (name, Builtin name typ (BinOp impl))
 
+-- | Function helper constructor
 func :: Var -> Type -> T.Text -> (Var, Builtin)
 func name typ impl =
   (name, Builtin name typ (Func impl))

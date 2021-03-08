@@ -2,14 +2,19 @@
 -}
 
 module Language.Strema
-  ( module Language.Strema.Syntax.Ast
-  , module Language.Strema.Syntax.Parser
+  ( -- * Strema frontend
+    module Language.Strema
+    -- * Strema language definition
+  , module Language.Strema.Syntax.Ast
+    -- * Strema parser extra
+  , module Text.Megaparsec
+    -- * Strema Type Inference
   , module Language.Strema.Types.Infer
+    -- * Strema builtin functions and types
   , module Language.Strema.Builtins
+    -- * Strema Rewrites
   , module Language.Strema.Rewrites
   , module Language.Strema.Rewrites.RemoveAnn
-  , module Text.Megaparsec
-  , module Language.Strema
   )
 where
 
@@ -19,21 +24,28 @@ import Utils
 
 import Language.Strema.Syntax.Ast
 import Language.Strema.Syntax.Parser (runParser, parseFile)
-import Language.Strema.Types.Infer (infer, TypeError(..), TypeErrorA, Ann(..))
+import Language.Strema.Types.Infer (infer, Ann(..), TypeError(..), TypeErrorA)
 import Language.Strema.Builtins
 import Language.Strema.Rewrites
 import Language.Strema.Rewrites.RemoveAnn (removeAnn, removeAnn')
 import Text.Megaparsec (SourcePos)
 
+-- * Strema Parser
+
+-- | Parse a Strema source file from text
 parse :: FilePath -> Text -> Either Text (File SourcePos)
 parse = runParser parseFile
 
+-- * Strema Type Inference
+
+-- | Parse and infer a Strema source file from text
 inferPipeline :: FilePath -> Text -> Either Text (File Ann)
 inferPipeline path src = do
   parsed <- parse path src
   inferred <- first pShow $ infer parsed
   pure inferred
 
+-- | Parse and infer a Strema sourcefile and output the result to stdout
 testInfer :: Text -> IO ()
 testInfer = either T.putStrLn (T.putStrLn . pShow) . inferPipeline "test"
 
