@@ -176,7 +176,7 @@ boilerplate :: Var -> Type -> Expr Type -> File Type
 boilerplate name typ expr =
   File [TermDef typ $ Variable name $ EAnnotated typ expr]
 
-boilerplateFun :: Var -> Type -> [Var] -> Sub Type -> File Type
+boilerplateFun :: Var -> Type -> [Var] -> Block Type -> File Type
 boilerplateFun name typ args body =
   File [TermDef typ $ Function name  args body]
 

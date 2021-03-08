@@ -82,10 +82,10 @@ translateDef = \case
   Variable var expr ->
     JS.Variable var <$> translateExpr expr
   Function var args body ->
-    JS.Function var args <$> translateSub body
+    JS.Function var args <$> translateBlock body
 
-translateSub :: Translate m => Sub Ann -> m JS.Sub
-translateSub stmts =
+translateBlock :: Translate m => Block Ann -> m JS.Block
+translateBlock stmts =
   case reverse stmts of
     [] -> pure []
     SExpr expr : rest ->
@@ -132,7 +132,7 @@ translateExpr = \case
               [ JS.SRet (JS.EBinOp op (JS.EVar "x") (JS.EVar "y")) ]
 
   EFun args body ->
-    JS.EFun args <$> translateSub body
+    JS.EFun args <$> translateBlock body
   EFunCall fun args ->
     JS.EFunCall
       <$> translateExpr fun
@@ -171,9 +171,9 @@ translateExpr = \case
   EFfi fun args ->
     JS.EFunCall (JS.EVar fun) <$> traverse translateExpr args
 
-translatePatterns :: Translate m => JS.Expr -> [(Pattern, Sub Ann)] -> m JS.Sub
-translatePatterns outer = traverse $ \(pat, sub) -> do
-  result' <- translateSub sub
+translatePatterns :: Translate m => JS.Expr -> [(Pattern, Block Ann)] -> m JS.Block
+translatePatterns outer = traverse $ \(pat, block) -> do
+  result' <- translateBlock block
   PatResult conds matches <- translatePattern outer pat
   let (matchersV, matchersE) = unzip matches
   pure $ JS.SIf (JS.EAnd conds)

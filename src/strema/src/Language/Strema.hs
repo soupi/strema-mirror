@@ -2,7 +2,13 @@
 -}
 
 module Language.Strema
-  ( module Export
+  ( module Language.Strema.Syntax.Ast
+  , module Language.Strema.Syntax.Parser
+  , module Language.Strema.Types.Infer
+  , module Language.Strema.Builtins
+  , module Language.Strema.Rewrites
+  , module Language.Strema.Rewrites.RemoveAnn
+  , module Text.Megaparsec
   , module Language.Strema
   )
 where
@@ -11,13 +17,13 @@ import qualified Data.Text.IO as T
 
 import Utils
 
-import Language.Strema.Syntax.Ast as Export
-import Language.Strema.Types.Infer as Export (infer, TypeError(..), TypeErrorA, Ann(..))
-import Language.Strema.Builtins as Export
-import Language.Strema.Rewrites as Export
-import Language.Strema.Rewrites.RemoveAnn as Export (removeAnn, removeAnn')
+import Language.Strema.Syntax.Ast
 import Language.Strema.Syntax.Parser (runParser, parseFile)
-import Text.Megaparsec as Export (SourcePos)
+import Language.Strema.Types.Infer (infer, TypeError(..), TypeErrorA, Ann(..))
+import Language.Strema.Builtins
+import Language.Strema.Rewrites
+import Language.Strema.Rewrites.RemoveAnn (removeAnn, removeAnn')
+import Text.Megaparsec (SourcePos)
 
 parse :: FilePath -> Text -> Either Text (File SourcePos)
 parse = runParser parseFile

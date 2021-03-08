@@ -39,8 +39,8 @@ ppFile (File stmts) =
     , vsep $ map ppStmt stmts
     ]
 
-ppSub :: Sub -> Doc ann
-ppSub = vsep . map ppStmt
+ppBlock :: Block -> Doc ann
+ppBlock = vsep . map ppStmt
 
 ppStmt :: Statement -> Doc ann
 ppStmt = \case
@@ -50,10 +50,10 @@ ppStmt = \case
     nest 4 (group $ "return" <+> ppExpr expr) <> ";"
   SDef def ->
     ppDef def <> ";"
-  SIf cond sub ->
+  SIf cond block ->
     vsep
       [ "if " <> parens (ppExpr cond) <+> "{"
-      , indent 4 $ ppSub sub
+      , indent 4 $ ppBlock block
       , "}"
       ]
   SRecordClone var expr ->
@@ -100,7 +100,7 @@ ppExpr = \case
   EFun args body ->
     vsep
       [ "function" <> tupled' (map pretty args) <+> "{"
-      , flatAlt (indent 4 $ ppSub body) (ppSub body)
+      , flatAlt (indent 4 $ ppBlock body) (ppBlock body)
       , "}"
       ]
 

@@ -377,12 +377,12 @@ elaborateTermDef ann = \case
       , eiResult = Variable name expr'
       , eiNewEnv = mempty
       }
-  Function name args sub -> do
+  Function name args body -> do
     tfun <- genTypeVar "t"
     targsEnv <- traverse (\arg -> (,) arg <$> genTypeVar "t") args
-    (tret, sub') <- withEnv
+    (tret, body') <- withEnv
       ((name, Concrete $ TypeVar tfun) : fmap (fmap (Concrete . TypeVar)) targsEnv)
-      (elaborateSub sub)
+      (elaborateBlock body)
 
     constrain ann $ Equality
       (TypeVar tfun)
@@ -390,28 +390,28 @@ elaborateTermDef ann = \case
 
     pure $ ElabInfo
       { eiType = TypeVar tfun
-      , eiResult = Function name args sub'
+      , eiResult = Function name args body'
       , eiNewEnv = mempty
       }
 
 -- | Elaborate a list of statements.
 --   Returns the type of the final statement as well.
-elaborateSub :: Elaborate m => Sub InputAnn -> m (Type, Sub Ann)
-elaborateSub sub = do
+elaborateBlock :: Elaborate m => Block InputAnn -> m (Type, Block Ann)
+elaborateBlock block = do
   -- we want to fold over the list of statements, and for each new definition,
   -- add it to the environment for the elaboration of the next expressions
-  sub' <- foldM
-    ( \subinfo stmt -> do
-      stmt' <- withEnv' (eiNewEnv subinfo) $ elaborateStmt stmt
+  block' <- foldM
+    ( \blockinfo stmt -> do
+      stmt' <- withEnv' (eiNewEnv blockinfo) $ elaborateStmt stmt
       pure $ ElabInfo
-        { eiResult = eiResult stmt' : eiResult subinfo
+        { eiResult = eiResult stmt' : eiResult blockinfo
         , eiType = eiType stmt'
-        , eiNewEnv = M.union (eiNewEnv stmt') (eiNewEnv subinfo)
+        , eiNewEnv = M.union (eiNewEnv stmt') (eiNewEnv blockinfo)
         }
     )
     (ElabInfo [] tUnit mempty)
-    sub
-  pure (eiType sub', reverse (eiResult sub'))
+    block
+  pure (eiType block', reverse (eiResult block'))
 
 -- | Elaborate a single statement.
 elaborateStmt :: Elaborate m => Statement InputAnn -> m (ElabInfo (Statement Ann))
@@ -467,7 +467,7 @@ elaborateExpr ann = \case
   -- The result type should be a function from the arguments types to the type of the body
   EFun args body -> do
     targsEnv <- traverse (\arg -> (,) arg <$> genTypeVar "t") args
-    (tret, body') <- withEnv (fmap (fmap (Concrete . TypeVar)) targsEnv) $ elaborateSub body
+    (tret, body') <- withEnv (fmap (fmap (Concrete . TypeVar)) targsEnv) $ elaborateBlock body
 
     let tfun = TypeFun (map (TypeVar . snd) targsEnv) tret
 
@@ -519,29 +519,29 @@ elaborateExpr ann = \case
 -- | Elaborate patterns in case expressions
 elaboratePatterns
   :: Elaborate m
-  => InputAnn -> Type -> Type -> [(Pattern, Sub InputAnn)] -> m [(Pattern, Sub Ann)]
+  => InputAnn -> Type -> Type -> [(Pattern, Block InputAnn)] -> m [(Pattern, Block Ann)]
 elaboratePatterns ann exprT bodyT pats = do
   traverse (elaboratePattern ann exprT bodyT) pats
 
 -- | Elaborate a single pattern match
 elaboratePattern
   :: Elaborate m
-  => InputAnn -> Type -> Type -> (Pattern, Sub InputAnn) -> m (Pattern, Sub Ann)
+  => InputAnn -> Type -> Type -> (Pattern, Block InputAnn) -> m (Pattern, Block Ann)
 elaboratePattern ann exprT bodyT (outerPat, body) = do
   case outerPat of
     PWildcard -> do
-      (t, body') <- elaborateSub body
+      (t, body') <- elaborateBlock body
       constrain ann $ Equality bodyT t
       pure (outerPat, body')
 
     PVar v -> do
-      (t, body') <- withEnv [(v, Concrete exprT)] $ elaborateSub body
+      (t, body') <- withEnv [(v, Concrete exprT)] $ elaborateBlock body
       constrain ann $ Equality bodyT t
       pure (outerPat, body')
 
     PLit lit -> do
       constrain ann $ Equality (getLitType lit) exprT
-      (t, body') <- elaborateSub body
+      (t, body') <- elaborateBlock body
       constrain ann $ Equality bodyT t
       pure (outerPat, body')
 

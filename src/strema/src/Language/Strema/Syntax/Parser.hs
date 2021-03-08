@@ -262,11 +262,11 @@ parseTermDef = do
   assign
   maybe
     (Variable name <$> parseExpr)
-    (\args -> Function name args <$> parseSub)
+    (\args -> Function name args <$> parseBlock)
     margs
 
-parseSub :: Parser (Sub Ann)
-parseSub =
+parseBlock :: Parser (Block Ann)
+parseBlock =
   P.choice
     [ do
       rword "do" *> newlines
@@ -338,11 +338,11 @@ parseCaseOf = do
   rword "end"
   pure $ ECase e pats
 
-parsePatterns :: Parser [(Pattern, Sub Ann)]
+parsePatterns :: Parser [(Pattern, Block Ann)]
 parsePatterns = P.many $
   (,)
     <$> (bar *> lexeme parsePattern <* newlines)
-    <*> (arrow *> lexeme parseSub <* newlines)
+    <*> (arrow *> lexeme parseBlock <* newlines)
 
 parsePattern :: Parser Pattern
 parsePattern =
@@ -372,8 +372,8 @@ parseLambda = do
   rword "fun"
   args <- lexeme $ parens $ P.sepBy (lexeme var <* newlines) comma
   arrow *> newlines
-  sub <- parseSub
-  pure $ EFun args sub
+  body <- parseBlock
+  pure $ EFun args body
 
 -- * General
 

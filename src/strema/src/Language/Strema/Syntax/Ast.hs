@@ -27,10 +27,10 @@ data Definition a
 
 data TermDef a
   = Variable Var (Expr a)
-  | Function Var [Var] (Sub a)
+  | Function Var [Var] (Block a)
   deriving (Show, Eq, Ord, Data, Functor, Foldable, Traversable)
 
-type Sub a = [Statement a]
+type Block a = [Statement a]
 
 data Datatype
   = Datatype Constr [TypeVar] [Variant Type]
@@ -45,13 +45,13 @@ data Expr a
   = EAnnotated a (Expr a)
   | ELit Lit
   | EVar Var
-  | EFun [Var] (Sub a)
+  | EFun [Var] (Block a)
   | EFunCall (Expr a) [Expr a]
   | EVariant (Variant (Expr a))
   | ERecord (Record (Expr a))
   | ERecordAccess (Expr a) Label
   | ERecordExtension (Record (Expr a)) (Expr a)
-  | ECase (Expr a) [(Pattern, Sub a)]
+  | ECase (Expr a) [(Pattern, Block a)]
   | EFfi T.Text [Expr a]
   deriving (Show, Eq, Ord, Data, Functor, Foldable, Traversable)
 

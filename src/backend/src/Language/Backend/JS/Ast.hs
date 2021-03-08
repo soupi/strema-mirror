@@ -11,16 +11,16 @@ data File
 
 data Definition
   = Variable Var Expr
-  | Function Var [Var] Sub
+  | Function Var [Var] Block
   deriving Show
 
-type Sub = [Statement]
+type Block = [Statement]
 
 data Statement
   = SExpr Expr
   | SRet Expr
   | SDef Definition
-  | SIf Expr Sub
+  | SIf Expr Block
   | SRecordClone Var Expr
   | SRecordAssign Var Label Expr -- Expr.label = Expr
   deriving Show
@@ -28,7 +28,7 @@ data Statement
 data Expr
   = ELit Lit
   | EVar Var
-  | EFun [Var] Sub
+  | EFun [Var] Block
   | EFunCall Expr [Expr]
   | ERecord (Record Expr)
   | EAnd [Expr]
