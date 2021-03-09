@@ -15,11 +15,21 @@ For more information visit the [webpage](https://gilmi.gitlab.io/strema).
 
 ## Build and run
 
-Prerequisites: [Stack](https://haskellstack.org) (Could probably also be built with [Cabal+GHC](https://www.haskell.org/downloads/) instead).
+### With [Stack](https://haskellstack.org)
 
 ```sh
 > stack run -- compile --input examples/factorial.strm --output /tmp/output.js
+> node /tmp/output.js # use node to run the program
+120
+```
+
+With [Cabal+GHC](https://www.haskell.org/ghcup):
+
+```sh
+> cabal v2-build all
+> cabal v2-run stremac -- compile --input examples/factorial.strm --output /tmp/output.js
 > node /tmp/output.js
 120
 ```
 
+Note that the type checker will be integrated to the `compile` command once it is finished.
