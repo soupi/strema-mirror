@@ -23,9 +23,10 @@ For more information visit the [webpage](https://gilmi.gitlab.io/strema).
 120
 ```
 
-With [Cabal+GHC](https://www.haskell.org/ghcup):
+### With [Cabal+GHC](https://www.haskell.org/ghcup):
 
 ```sh
+> cabal v2-update
 > cabal v2-build all
 > cabal v2-run stremac -- compile --input examples/factorial.strm --output /tmp/output.js
 > node /tmp/output.js
