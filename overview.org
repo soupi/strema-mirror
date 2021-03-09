@@ -11,7 +11,7 @@ For example in Haskell:
 #+BEGIN_SRC haskell
 data Definition
   = Variable Var Expr
-  | Function Var [Var] Sub
+  | Function Var [Var] Block
 #+END_SRC
 
 Here we define a new data type named ~Definition~ which has two possible representations,
@@ -42,7 +42,7 @@ case mydef of
   Variable var expr ->
     JS.Variable var (translateExpr expr)
   Function var args body ->
-    JS.Function var args (translateSub body)
+    JS.Function var args (translateBlock body)
 #+END_SRC
 
 Pattern matching can be represented using:

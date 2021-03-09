@@ -10,7 +10,7 @@ a function or a type using the following forms:
 #+BEGIN_SRC haskell
 def <name> := <expression> // A value
 
-def <name>([<argument>, ...]) := <subroutine> // A function
+def <name>([<argument>, ...]) := <block> // A function
 
 type <Typename> <type-arguments> = // A type
     [ <type-variant> ]
@@ -57,7 +57,7 @@ For example:
 name
 #+END_SRC
 
-- An anonymous function of the form ~fun(<arguments>) -> <subroutine>~
+- An anonymous function of the form ~fun(<arguments>) -> <block>~
 
 For example:
 
@@ -137,7 +137,7 @@ Patterns can be one of the following:
 - A literal value
 - A variant of patterns
 - A record of patterns
-** Subroutines
+** Blocks
 Functions' body is a made of one or more statements separated by newlines
 which start with the keyword ~do~ and end with the keyword ~end~.
 
@@ -153,7 +153,7 @@ def cube(n) := do
 end
 #+END_SRC
 
-The ~do~ and ~end~ keywords are not required when the subroutine contains just a single expression.
+The ~do~ and ~end~ keywords are not required when the block contains just a single expression.
 
 #+BEGIN_SRC haskell
 def cube(n) := mul(mul(n, n), n)
