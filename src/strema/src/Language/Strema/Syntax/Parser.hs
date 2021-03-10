@@ -415,3 +415,5 @@ parseRecord pSym pa mpb = braces $ do
 
   pure (record, ext)
     
+dummyAnn :: FilePath -> P.SourcePos
+dummyAnn fname = P.SourcePos fname (P.mkPos 1) (P.mkPos 1)

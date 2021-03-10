@@ -4,9 +4,7 @@ module Language.Strema.Compiler.Run where
 
 import Language.Strema.Compiler.Compile
 import Utils
-import qualified Language.Strema.Syntax.Ast as Strema
-import qualified Language.Strema.Syntax.Parser as Parser
-import qualified Language.Strema.Types.Infer as Infer
+import qualified Language.Strema as Strema
 
 import Options.Generic
 import qualified Data.Text as T
@@ -41,24 +39,15 @@ run = do
 
     Parse inputFile outputFile -> do
       process
-        (fmap (fmap pShow) . Parser.runParser Parser.parseFile)
+        (fmap (fmap pShow) . Strema.parse)
         inputFile
         outputFile
 
     Infer inputFile outputFile -> do
       process
-        (fmap (fmap pShow) . inferPipeline)
+        (fmap (fmap pShow) . Strema.inferPipeline)
         inputFile
         outputFile
-
-testInfer :: T.Text -> IO ()
-testInfer = either T.putStrLn (T.putStrLn . pShow) . inferPipeline "test"
-
-inferPipeline :: FilePath -> T.Text -> Either T.Text (Strema.File Infer.Ann)
-inferPipeline path src = do
-  parsed <- first pShow $ Parser.runParser Parser.parseFile path src
-  inferred <- first pShow $ Infer.infer parsed
-  pure inferred
 
 process
   :: (FilePath -> T.Text -> Either T.Text T.Text)

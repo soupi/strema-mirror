@@ -68,7 +68,7 @@ data TypeError
   | DuplicateTypeVarsInSig Datatype
   | DuplicateConstrs Datatype
   | DuplicateConstrs2 [(Constr, (VariantSig InputAnn, VariantSig InputAnn))]
-  | NotSuchVariant Constr
+  | NoSuchVariant Constr
   | RecordDiff Type Type (S.Set Label)
   | NotARecord Type
   | DuplicateVarsInPattern Pattern
@@ -266,7 +266,7 @@ withoutEnv = local . removeFromEnv
 -- | Lookup variant in env
 lookupVariant :: Elaborate m => InputAnn -> Constr -> m (VariantSig InputAnn)
 lookupVariant ann constr = do
-  maybe (throwErr [ann] $ NotSuchVariant constr) pure . M.lookup constr . esVariantEnv =<< get
+  maybe (throwErr [ann] $ NoSuchVariant constr) pure . M.lookup constr . esVariantEnv =<< get
 
 -- | Add a datatype information into the environment
 addVariantSigs :: Elaborate m => VariantEnv InputAnn -> m ()
@@ -316,6 +316,8 @@ runElaborate builtinsTypes =
 -- | Elaborate a source file
 elaborateFile :: Elaborate m => File InputAnn -> m (File Ann)
 elaborateFile (File defs) = do
+  _ <- traverse (uncurry elaborateTypeDef) $
+    map ((,) $ Parser.dummyAnn "builtin") builtinDatatypes 
   let
     termDefs = mapMaybe getTermDef defs
     typeDefs = mapMaybe getTypeDef defs

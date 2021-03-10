@@ -33,4 +33,3 @@ For more information visit the [webpage](https://gilmi.gitlab.io/strema).
 120
 ```
 
-Note that the type checker will be integrated to the `compile` command once it is finished.

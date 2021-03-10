@@ -23,6 +23,7 @@ module Language.Strema.Builtins
   , false
   , unit
     -- * Data types
+  , builtinDatatypes
   , dataBool
   , dataOption
     -- * Functions
@@ -67,6 +68,12 @@ unit :: Expr ()
 unit = ERecord mempty
 
 -- * Data types
+
+builtinDatatypes :: [Datatype]
+builtinDatatypes =
+  [ dataBool
+  , dataOption
+  ]
 
 dataBool :: Datatype
 dataBool =
