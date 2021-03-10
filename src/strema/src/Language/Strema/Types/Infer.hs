@@ -126,9 +126,10 @@ getTypeDef = \case
   TypeDef ann def -> Just (ann, def)
 
 -- | Retrieve the annotation of an expression. Will explode when used on a non @EAnnotated@ node.
-getExprAnn :: Expr a -> a
+getExprAnn :: Show a => Expr a -> a
 getExprAnn = \case
   EAnnotated typ _ -> typ
+  e -> error $ toString $ "Expr is not annotated: " <> pShow e
 
 -- | Retrieve the type of an expression. Will explode when used on a non @EAnnotated@ node.
 getType :: Expr Ann -> Type
@@ -489,6 +490,13 @@ elaborateExpr ann = \case
       (TypeFun (map getType args') tret)
     pure $ EAnnotated (Ann ann tret) $
       EFunCall f' args'
+
+  -- We're going to only allow FFI that returns tUnit atm.
+  -- Later on we'll add a type annotation to the FFI
+  EFfi f args -> do
+    args' <- traverse (elaborateExpr ann) args
+    pure $ EAnnotated (Ann ann tUnit) $
+      EFfi f args'
 
   -- lookup variant in the environment
   EVariant (Variant constr expr) -> do
