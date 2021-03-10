@@ -750,6 +750,8 @@ solveConstraint (constraint, ann) =
         ( map (flip (,) ann) $ Equality (TypeRec $ M.toList onlyLeft) (TypeVar ext) : matches
         , mempty
         )
+    Equality t1@TypeRecExt{} t2@TypeRec{} -> do
+      solveConstraint (Equality t2 t1, ann)
 
     Equality (TypeRecExt (M.fromList -> rec1) ext1) (TypeRecExt (M.fromList -> rec2) ext2) -> do
       let
