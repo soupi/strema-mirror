@@ -71,6 +71,7 @@ data TypeError
   | NotSuchVariant Constr
   | RecordDiff Type Type (S.Set Label)
   | NotARecord Type
+  | DuplicateVarsInPattern Pattern
   deriving Show
 
 -- | Represents the constraints on types we collect during the elaboration phase.
@@ -554,29 +555,28 @@ elaboratePatterns
   :: Elaborate m
   => InputAnn -> Type -> Type -> [(Pattern, Block InputAnn)] -> m [(Pattern, Block Ann)]
 elaboratePatterns ann exprT bodyT pats = do
-  traverse (elaboratePattern ann exprT bodyT) pats
+  for pats $ \(pat, body) -> do
+    env <- elaboratePattern ann exprT pat
+    (t, body') <- withEnv env $ elaborateBlock body
+    constrain ann $ Equality bodyT t
+    pure (pat, body')
+  
 
 -- | Elaborate a single pattern match
 elaboratePattern
   :: Elaborate m
-  => InputAnn -> Type -> Type -> (Pattern, Block InputAnn) -> m (Pattern, Block Ann)
-elaboratePattern ann exprT bodyT (outerPat, body) = do
+  => InputAnn -> Type -> Pattern -> m [(Var, Typer)]
+elaboratePattern ann exprT outerPat = do
   case outerPat of
-    PWildcard -> do
-      (t, body') <- elaborateBlock body
-      constrain ann $ Equality bodyT t
-      pure (outerPat, body')
+    PWildcard ->
+      pure mempty
 
-    PVar v -> do
-      (t, body') <- withEnv [(v, Concrete exprT)] $ elaborateBlock body
-      constrain ann $ Equality bodyT t
-      pure (outerPat, body')
+    PVar v ->
+      pure [(v, Concrete exprT)]
 
     PLit lit -> do
       constrain ann $ Equality (getLitType lit) exprT
-      (t, body') <- elaborateBlock body
-      constrain ann $ Equality bodyT t
-      pure (outerPat, body')
+      pure mempty
 
     PVariant (Variant constr innerPat) -> do
       vs@VariantSig{ vsDatatype, vsTemplate } <- lookupVariant ann constr
@@ -595,9 +595,26 @@ elaboratePattern ann exprT bodyT (outerPat, body) = do
           vsTemplate
 
       constrain ann $ Equality exprT dt
-      (pat', body') <- elaboratePattern ann innerPatT bodyT (innerPat, body)
-      pure (PVariant (Variant constr pat'), body')
+      elaboratePattern ann innerPatT innerPat
 
+    PRecord record -> do
+      record' <- for record $ \pat -> do
+        t <- TypeVar <$> genTypeVar "t"
+        (,) t <$> elaboratePattern ann t pat
+
+      ext <- genTypeVar "t"
+      constrain ann $ Equality
+        exprT
+        (TypeRecExt (M.toList $ fmap fst record') ext)
+
+      -- check if we have duplicate names in the environment
+      let
+        envs = map (M.fromList . snd) $ M.elems record'
+        env = M.unions $ map (M.fromList . snd) $ M.elems record'
+      
+      unless (sum (map length envs) == length env) $ do
+        throwErr [ann] $ DuplicateVarsInPattern outerPat
+      pure $ M.toList env
 
 -- | The type of a literal
 getLitType :: Lit -> Type
@@ -721,6 +738,21 @@ solveConstraint (constraint, ann) =
         onlyLeft = M.difference rec1 rec2
       pure
         ( map (flip (,) ann) $ Equality (TypeRec $ M.toList onlyLeft) (TypeVar ext) : matches
+        , mempty
+        )
+
+    Equality (TypeRecExt (M.fromList -> rec1) ext1) (TypeRecExt (M.fromList -> rec2) ext2) -> do
+      let
+        matches = M.elems $ M.intersectionWith Equality rec1 rec2
+        onlyLeft = M.difference rec1 rec2
+        onlyRight = M.difference rec2 rec1
+      ext1' <- genTypeVar "ext"
+      ext2' <- genTypeVar "ext"
+      pure
+        ( map (flip (,) ann)
+          $ Equality (TypeRecExt (M.toList onlyLeft) ext1') (TypeVar ext2)
+          : Equality (TypeRecExt (M.toList onlyRight) ext2') (TypeVar ext1)
+          : matches
         , mempty
         )
 
