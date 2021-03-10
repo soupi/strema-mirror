@@ -13,5 +13,8 @@ data Type
   | TypeApp Type Type -- ^ type application, like @List a@
   | TypeFun [Type] Type -- ^ the type of functions
   | TypeRec [(Label, Type)] -- ^ the type of a record, like { x : Int, y : String }
+  | TypeRecExt [(Label, Type)] TypeVar
+    -- ^ a record with an extension, such as { x : Int, y : String | r }
+    --   means "this record has at least { x : Int, y : String }, but can have more
   deriving (Show, Eq, Ord, Data)
 

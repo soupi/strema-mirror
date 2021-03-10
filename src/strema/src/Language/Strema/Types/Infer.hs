@@ -13,6 +13,7 @@ with concrete types.
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Language.Strema.Types.Infer where
 
@@ -68,6 +69,8 @@ data TypeError
   | DuplicateConstrs Datatype
   | DuplicateConstrs2 [(Constr, (VariantSig InputAnn, VariantSig InputAnn))]
   | NotSuchVariant Constr
+  | RecordDiff Type Type (S.Set Label)
+  | NotARecord Type
   deriving Show
 
 -- | Represents the constraints on types we collect during the elaboration phase.
@@ -318,7 +321,7 @@ elaborateFile (File defs) = do
   -- We invent types for top level term definitions.
   -- These should be let polymorphic so we use @Instance@ instead of @Concrete@
   typeDefs' <- traverse (uncurry elaborateTypeDef) typeDefs
-  vars <- traverse (\name -> (,) name . Instance <$> genTypeVar "t") names
+  vars <- traverse (\name -> (,) name . Instance <$> genTypeVar "top") names
   File . (<>) typeDefs' <$> withEnv vars (traverse (uncurry elaborateDef) termDefs)
 
 -- | Add a data type to the VariantEnv and elaborate it with a dummy type.
@@ -355,16 +358,16 @@ elaborateDef :: Elaborate m => InputAnn -> TermDef InputAnn -> m (Definition Ann
 elaborateDef ann def = do
   -- we need to change the type of def in the current environment for recursive functions
   let name = getTermName def
-  t <- genTypeVar name
-  -- When evaluating a definition, the type should not be let polymorphic.
-  elab <- withEnv [(name, Concrete $ TypeVar t)] $ elaborateTermDef ann def
-  lookupVar ann name >>= \case
+  t <- lookupVar ann name >>= \case
     Instance t' ->
+      pure t'
       -- @t'@ is the type other definitions see.
       -- It is an instantiation of the type we just elaborated for def.
-      constrain ann $ InstanceOf (TypeVar t') (eiType elab)
-    _ ->
-      pure ()
+    Concrete t' ->
+      error $ toString $ "unexpected Typer: " <> pShow t'
+  -- When evaluating a definition, the type should not be let polymorphic.
+  elab <- withEnv [(name, Concrete $ TypeVar t)] $ elaborateTermDef ann def
+  constrain ann $ InstanceOf (TypeVar t) (eiType elab)
   pure $ TermDef (Ann ann $ eiType elab) (eiResult elab)
 
 -- | Elaborate a term definition helper function
@@ -378,8 +381,8 @@ elaborateTermDef ann = \case
       , eiNewEnv = mempty
       }
   Function name args body -> do
-    tfun <- genTypeVar "t"
-    targsEnv <- traverse (\arg -> (,) arg <$> genTypeVar "t") args
+    tfun <- genTypeVar "tfun"
+    targsEnv <- traverse (\arg -> (,) arg <$> genTypeVar "targ") args
     (tret, body') <- withEnv
       ((name, Concrete $ TypeVar tfun) : fmap (fmap (Concrete . TypeVar)) targsEnv)
       (elaborateBlock body)
@@ -389,7 +392,7 @@ elaborateTermDef ann = \case
       (TypeFun (map (TypeVar . snd) targsEnv) tret)
 
     pure $ ElabInfo
-      { eiType = TypeVar tfun
+      { eiType = (TypeFun (map (TypeVar . snd) targsEnv) tret)
       , eiResult = Function name args body'
       , eiNewEnv = mempty
       }
@@ -453,7 +456,7 @@ elaborateExpr ann = \case
       Just (Concrete t) -> pure t
       -- For let-polymorphism
       Just (Instance t) -> do
-        tv <- genTypeVar "t"
+        tv <- genTypeVar $ t <> "_i"
         constrain ann $ InstanceOf (TypeVar tv) (TypeVar t)
         pure $ TypeVar tv
       Nothing -> do
@@ -516,6 +519,36 @@ elaborateExpr ann = \case
     pure $ EAnnotated (Ann ann patT) $
       ECase expr' patterns'
 
+  ERecord record -> do
+    record' <- traverse (elaborateExpr ann) record
+    let
+      recordT = TypeRec $ M.toList $ fmap getType record'
+
+    pure $ EAnnotated (Ann ann recordT) $
+      ERecord record'
+
+  -- the "expr" should be a record with at least the "label" label
+  ERecordAccess expr label -> do
+    labelT <- TypeVar <$> genTypeVar "t"
+    ext <- genTypeVar "t"
+    expr' <- elaborateExpr ann expr
+    constrain ann $ Equality
+      (getType expr')
+      (TypeRecExt [(label, labelT)] ext)
+    pure $ EAnnotated (Ann ann labelT) $
+      ERecordAccess expr' label
+
+  ERecordExtension record expr -> do
+    expr' <- elaborateExpr ann expr
+    record' <- traverse (elaborateExpr ann) record
+    et <- genTypeVar "t"
+    constrain ann $ Equality (TypeVar et) (getType expr')
+    let
+      recordTypes = M.toList $ fmap getType record'
+      t = TypeRecExt recordTypes et
+    pure $ EAnnotated (Ann ann t) $
+      ERecordExtension record' expr'
+
 -- | Elaborate patterns in case expressions
 elaboratePatterns
   :: Elaborate m
@@ -564,7 +597,6 @@ elaboratePattern ann exprT bodyT (outerPat, body) = do
       constrain ann $ Equality exprT dt
       (pat', body') <- elaboratePattern ann innerPatT bodyT (innerPat, body)
       pure (PVariant (Variant constr pat'), body')
-
 
 
 -- | The type of a literal
@@ -658,7 +690,6 @@ solveConstraint (constraint, ann) =
     Equality t1@(TypeFun args1 ret1) t2@(TypeFun args2 ret2) -> do
       unless (length args1 == length args2) $
         throwErr [ann] $ ArityMismatch t1 t2
-
       pure
         ( map (flip (,) ann) $ zipWith Equality (ret1 : args1) (ret2 : args2)
         , mempty
@@ -667,6 +698,29 @@ solveConstraint (constraint, ann) =
     Equality (TypeApp f1 a1) (TypeApp f2 a2) ->
       pure
         ( map (flip (,) ann) $ [Equality f1 f2, Equality a1 a2]
+        , mempty
+        )
+
+    -- all record labels and type should match
+    Equality t1@(TypeRec (M.fromList -> rec1)) t2@(TypeRec (M.fromList -> rec2)) -> do
+      let
+        matches = M.elems $ M.intersectionWith Equality rec1 rec2
+        diff = M.keysSet rec1 `S.difference` M.keysSet rec2
+      unless (S.null diff) $
+        throwErr [ann] $ RecordDiff t1 t2 diff
+      pure
+        ( map (flip (,) ann) matches
+        , mempty
+        )
+
+    -- we want to make sure rec1 and rec2 do not contain matching labels with non matching types
+    -- we want to match the labels from rec1 that do not exist in rec2 to match "ext"
+    Equality (TypeRec (M.fromList -> rec1)) (TypeRecExt (M.fromList -> rec2) ext) -> do
+      let
+        matches = M.elems $ M.intersectionWith Equality rec1 rec2
+        onlyLeft = M.difference rec1 rec2
+      pure
+        ( map (flip (,) ann) $ Equality (TypeRec $ M.toList onlyLeft) (TypeVar ext) : matches
         , mempty
         )
 
@@ -709,14 +763,23 @@ instantiate :: Solve m => Type -> m (Env TypeVar, Type)
 instantiate typ = do
   -- collect all type variables, generate a new type variable for each one
   -- replace old type variables with new ones
-  env <- fmap M.fromList $ sequence
+  env1 <- fmap M.fromList $ sequence
     [ (,) tv <$> genTypeVar "ti"
     | TypeVar tv <- U.universe typ
     ]
+  env2 <- fmap M.fromList $ sequence
+    [ (,) tv <$> genTypeVar "ti"
+    | TypeRecExt _ tv <- U.universe typ
+    ]
+  let
+    env = env1 <> env2
   pure $ (,) env $ flip U.transform typ $ \case
     TypeVar tv
       | Just tv' <- M.lookup tv env ->
         TypeVar tv'
+    TypeRecExt r tv
+      | Just tv' <- M.lookup tv env ->
+        TypeRecExt r tv'
     other -> other
 
 
@@ -753,9 +816,24 @@ replaceTypeVar sub = \case
       (occursCheck v) -- Maybe sure we don't have an infinite type
       (M.lookup v sub)
 
+  TypeRecExt r1 ext
+    | Just r2 <- M.lookup ext sub -> do
+      void $ occursCheck ext r2
+      mergeRecords r1 r2
+
   other ->
     pure other
 
+mergeRecords :: Substitute m => [(Label, Type)] -> Type -> m Type
+mergeRecords r1 = \case
+  TypeRec r2 ->
+    pure . TypeRec . M.toList $ M.fromListWith (flip const) (r1 <> r2)
+  TypeVar ext' ->
+    pure $ TypeRecExt r1 ext'
+  TypeRecExt r2 ext ->
+    pure . flip TypeRecExt ext . M.toList $ M.fromListWith (flip const) (r1 <> r2)
+  t ->
+    throwErr [] $ NotARecord t
 
 -- | protect against infinite types
 occursCheck :: Substitute m => TypeVar -> Type -> m Type

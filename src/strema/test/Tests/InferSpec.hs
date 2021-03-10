@@ -52,8 +52,8 @@ lambdas = do
       shouldBe
         (testinfer "def id := fun(x) -> x")
         ( pure $ boilerplate "id"
-          ( TypeFun [TypeVar "t2"] (TypeVar "t2") )
-          ( EFun ["x"] [ SExpr ( EAnnotated (TypeVar "t2") $ EVar "x" ) ] )
+          ( TypeFun [TypeVar "t1"] (TypeVar "t1") )
+          ( EFun ["x"] [ SExpr ( EAnnotated (TypeVar "t1") $ EVar "x" ) ] )
         )
 
 funcalls :: Spec
@@ -103,16 +103,16 @@ functions = do
     it "id" $
       shouldBe
         (testinfer "def id(x) := x")
-        ( pure $ boilerplateFun "id" (TypeFun [TypeVar "t3"] (TypeVar "t3")) ["x"]
-          [ SExpr $ EAnnotated (TypeVar "t3") $ EVar "x"
+        ( pure $ boilerplateFun "id" (TypeFun [TypeVar "targ2"] (TypeVar "targ2")) ["x"]
+          [ SExpr $ EAnnotated (TypeVar "targ2") $ EVar "x"
           ]
         )
 
     it "const" $
       shouldBe
         (testinfer "def const(x, y) := x")
-        ( pure $ boilerplateFun "const" (TypeFun [TypeVar "t3", TypeVar "t4"] (TypeVar "t3")) ["x", "y"]
-          [ SExpr $ EAnnotated (TypeVar "t3") $ EVar "x"
+        ( pure $ boilerplateFun "const" (TypeFun [TypeVar "targ2", TypeVar "targ3"] (TypeVar "targ2")) ["x", "y"]
+          [ SExpr $ EAnnotated (TypeVar "targ2") $ EVar "x"
           ]
         )
 
@@ -149,9 +149,9 @@ def intId := id(1)
 def strId := id("hello")
 |])
         ( pure $ File
-          [ TermDef (TypeFun [TypeVar "t5"] (TypeVar "t5")) $
+          [ TermDef (TypeFun [TypeVar "targ4"] (TypeVar "targ4")) $
             Function "id" ["x"]
-              [ SExpr $ EAnnotated (TypeVar "t5") $ EVar "x"
+              [ SExpr $ EAnnotated (TypeVar "targ4") $ EVar "x"
               ]
 
           , TermDef tInt $

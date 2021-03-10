@@ -127,13 +127,13 @@ between open close p = do
   pure result
 
 parens :: Parser a -> Parser a
-parens = between '(' ')'
+parens = between '(' ')' . lexeme
 
 brackets :: Parser a -> Parser a
-brackets = between '[' ']'
+brackets = between '[' ']' . lexeme
 
 braces :: Parser a -> Parser a
-braces = between '{' '}'
+braces = between '{' '}' . lexeme
 
 -- * atoms
 
