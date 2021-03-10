@@ -63,6 +63,21 @@ end
         , expected = "1"
         }
 
+    it "bools" $
+      check $ Check
+        { program = [r|
+def hello(n) :=
+	case int_equals(n, 0) of
+		 | True {} -> "Hi!"
+		 | False {} -> "Hello!"
+	end
+
+def main() := ffi("console.log", hello(1))
+
+|]
+        , expected = "Hello!"
+        }
+
 
 data Check
   = Check

@@ -1,0 +1,9 @@
+def hello(n) :=
+	case int_equals(n, 0) of
+		 | True {} -> "Hi!"
+		 | False {} -> "Hello!"
+	end
+
+def main() := ffi("console.log", hello(1))
+
+// expected result: Hello!

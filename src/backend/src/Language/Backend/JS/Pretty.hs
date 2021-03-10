@@ -94,6 +94,9 @@ ppExpr = \case
   EBinOp op e1 e2 ->
     ppExpr e1 <+> pretty op <+> ppExpr e2
 
+  ENot e ->
+    "!" <> ppExpr e
+
   EAnd exprs ->
     group $ encloseSep "" "" " && " (map ppExpr exprs)
 
@@ -139,6 +142,7 @@ isSimple = \case
   EAnd{} -> True
   EEquals{} -> False
   EBinOp{} -> False
+  ENot{} -> True
   ERaw{} -> False
   ERecordAccess{} -> True
 

@@ -211,16 +211,33 @@ translatePattern expr = \case
       { conditions = [JS.ELit $ JS.LBool True]
       , matchers = []
       }
+
   PVar v ->
     pure $ PatResult
       { conditions = [JS.ELit $ JS.LBool True]
       , matchers = [(v, expr)]
       }
+
   PLit lit ->
     pure $ PatResult
       { conditions = [JS.EEquals (JS.ELit $ translateLit lit) expr]
       , matchers = []
       }
+
+  PVariant (Variant "True" (PRecord r))
+    | M.null r ->
+      pure $ PatResult
+        { conditions = [ expr ]
+        , matchers = []
+        }
+
+  PVariant (Variant "False" (PRecord r))
+    | M.null r ->
+      pure $ PatResult
+        { conditions = [ JS.ENot expr ]
+        , matchers = []
+        }
+
   PVariant (Variant tag pat) -> do
     pat' <- translatePattern (JS.ERecordAccess expr "_field") pat
     pure $ PatResult
@@ -231,6 +248,7 @@ translatePattern expr = \case
         ) : conditions pat'
       , matchers = matchers pat'
       }
+
   PRecord (M.toList -> fields) -> do
     fmap mconcat $ for fields $ \(field, pat) ->
       translatePattern (JS.ERecordAccess expr field) pat

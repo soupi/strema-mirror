@@ -34,6 +34,7 @@ data Expr
   | EAnd [Expr]
   | EEquals Expr Expr
   | EBinOp T.Text Expr Expr
+  | ENot Expr
   | ERecordAccess Expr Label
   | ERaw T.Text
   deriving Show
