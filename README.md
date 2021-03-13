@@ -1,5 +1,7 @@
 # strema
 
+**Note: See [Giml](https://gitlab.com/gilmi/giml-lang) for further development instead**
+
 ![Build status](https://gitlab.com/gilmi/strema/badges/master/pipeline.svg?job=pipeline)
 
 A compiler targeting javascript for a custom type inferred programming language with first class functions, ADTs and pattern matching.
