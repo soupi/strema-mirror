@@ -742,10 +742,13 @@ solveConstraint (constraint, ann) =
 
     -- we want to make sure rec1 and rec2 do not contain matching labels with non matching types
     -- we want to match the labels from rec1 that do not exist in rec2 to match "ext"
-    Equality (TypeRec (M.fromList -> rec1)) (TypeRecExt (M.fromList -> rec2) ext) -> do
+    Equality t1@(TypeRec (M.fromList -> rec1)) t2@(TypeRecExt (M.fromList -> rec2) ext) -> do
       let
         matches = M.elems $ M.intersectionWith Equality rec1 rec2
         onlyLeft = M.difference rec1 rec2
+        onlyRight = M.difference rec2 rec1
+      unless (M.null onlyRight) $
+        throwErr [ann] $ RecordDiff t1 t2 $ M.keysSet onlyRight
       pure
         ( map (flip (,) ann) $ Equality (TypeRec $ M.toList onlyLeft) (TypeVar ext) : matches
         , mempty
